@@ -1,8 +1,9 @@
-# Thoughts
+# Thoughts And Notes
 
 The below are based on the slides and contents of the
-[YouTube talk](https://www.youtube.com/watch?v=8fi7uSYlOdc), and some of my own
-thoughts
+[YouTube talk](https://www.youtube.com/watch?v=8fi7uSYlOdc) - a lot of times the
+exact same thing Liz Rice explained, and some of my own thoughts too in between,
+while trying out things
 
 We are going to build a container based on three
 concepts in Linux:
