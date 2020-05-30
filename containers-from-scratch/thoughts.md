@@ -1823,3 +1823,6 @@ above
 
 So, that's how you create a container on your own. An isolated process, using
 namespaces, chroot and control groups.
+
+Source code of the speaker
+https://github.com/lizrice/containers-from-scratch
