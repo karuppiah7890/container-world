@@ -2043,4 +2043,212 @@ the coredns pod in the same node was accessed, it worked ;) :)
 Next thing to do is, add routing to the worker instances to make sure that
 the pods in one node can access pods in another node
 
+I'm reading about configuring routing in linux using `ip`
 
+https://www.cyberciti.biz/faq/howto-linux-configuring-default-route-with-ipcommand/
+
+before this I assumed that `iptables` is the command to look at and was
+checking this
+
+https://www.digitalocean.com/community/tutorials/how-to-list-and-delete-iptables-firewall-rules
+
+but `iptables` stuff is only going to help in understanding about kube-proxy,
+which I'll come back to and check later!
+
+one more `iptables` link - https://www.cyberciti.biz/faq/how-to-list-all-iptables-rules-in-linux/ :)
+
+back to `ip` now
+
+Another related article for `ip` / `route` is
+https://www.cyberciti.biz/tips/configuring-static-routes-in-debian-or-red-hat-linux-systems.html
+
+Apparently changes done `ip` or `route` command don't persist and I need to
+put the config in some file probably
+
+For now, I'm just testing temporarily with `ip` command
+
+The pod CIDR range and node IP in each worker instance is
+
+```
+worker-0:
+pod CIDR - 10.200.0.0/24
+node IP  - 192.168.64.32
+
+worker-1:
+pod CIDR - 10.200.1.0/24
+node IP  - 192.168.64.33
+
+worker-2:
+pod CIDR - 10.200.2.0/24
+node IP  - 192.168.64.34
+```
+
+```bash
+ubuntu@worker-2:~$ sudo ip route add 10.200.1.0/24 via 192.168.64.33 dev enp0s2
+ubuntu@worker-2:~$ sudo ip route add 10.200.0.0/24 via 192.168.64.32 dev enp0s2
+
+ubuntu@worker-2:~$ ping 10.200.1.1
+PING 10.200.1.1 (10.200.1.1) 56(84) bytes of data.
+64 bytes from 10.200.1.1: icmp_seq=1 ttl=64 time=0.542 ms
+64 bytes from 10.200.1.1: icmp_seq=2 ttl=64 time=0.378 ms
+64 bytes from 10.200.1.1: icmp_seq=3 ttl=64 time=0.670 ms
+^C
+--- 10.200.1.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 0.378/0.530/0.670/0.119 ms
+
+ubuntu@worker-2:~$ ping 10.200.0.1
+PING 10.200.0.1 (10.200.0.1) 56(84) bytes of data.
+64 bytes from 10.200.0.1: icmp_seq=1 ttl=64 time=0.437 ms
+64 bytes from 10.200.0.1: icmp_seq=2 ttl=64 time=0.700 ms
+64 bytes from 10.200.0.1: icmp_seq=3 ttl=64 time=0.492 ms
+^C
+--- 10.200.0.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2085ms
+rtt min/avg/max/mdev = 0.437/0.543/0.700/0.113 ms
+```
+
+```bash
+ubuntu@worker-0:~$ sudo ip route add 10.200.1.0/24 via 192.168.64.33 dev enp0s2
+ubuntu@worker-0:~$ sudo ip route add 10.200.2.0/24 via 192.168.64.34 dev enp0s2
+
+ubuntu@worker-0:~$ ping 10.200.1.1
+PING 10.200.1.1 (10.200.1.1) 56(84) bytes of data.
+64 bytes from 10.200.1.1: icmp_seq=1 ttl=64 time=0.466 ms
+64 bytes from 10.200.1.1: icmp_seq=2 ttl=64 time=0.704 ms
+64 bytes from 10.200.1.1: icmp_seq=3 ttl=64 time=0.344 ms
+^C
+--- 10.200.1.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2028ms
+rtt min/avg/max/mdev = 0.344/0.504/0.704/0.151 ms
+
+ubuntu@worker-0:~$ ping 10.200.2.1
+PING 10.200.2.1 (10.200.2.1) 56(84) bytes of data.
+64 bytes from 10.200.2.1: icmp_seq=1 ttl=64 time=1.02 ms
+64 bytes from 10.200.2.1: icmp_seq=2 ttl=64 time=1.24 ms
+64 bytes from 10.200.2.1: icmp_seq=3 ttl=64 time=0.657 ms
+^C
+--- 10.200.2.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2066ms
+rtt min/avg/max/mdev = 0.657/0.974/1.247/0.245 ms
+```
+
+```bash
+ubuntu@worker-1:~$ sudo ip route add 10.200.0.0/24 via 192.168.64.32 dev enp0s2
+ubuntu@worker-1:~$ sudo ip route add 10.200.2.0/24 via 192.168.64.34 dev enp0s2
+
+ubuntu@worker-1:~$ ping 10.200.0.1
+PING 10.200.0.1 (10.200.0.1) 56(84) bytes of data.
+64 bytes from 10.200.0.1: icmp_seq=1 ttl=64 time=0.506 ms
+64 bytes from 10.200.0.1: icmp_seq=2 ttl=64 time=0.705 ms
+64 bytes from 10.200.0.1: icmp_seq=3 ttl=64 time=0.681 ms
+^C
+--- 10.200.0.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2133ms
+rtt min/avg/max/mdev = 0.506/0.630/0.705/0.093 ms
+
+ubuntu@worker-1:~$ ping 10.200.2.1
+PING 10.200.2.1 (10.200.2.1) 56(84) bytes of data.
+64 bytes from 10.200.2.1: icmp_seq=1 ttl=64 time=0.561 ms
+64 bytes from 10.200.2.1: icmp_seq=2 ttl=64 time=0.644 ms
+64 bytes from 10.200.2.1: icmp_seq=3 ttl=64 time=0.626 ms
+^C
+--- 10.200.2.1 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2145ms
+rtt min/avg/max/mdev = 0.561/0.610/0.644/0.040 ms
+```
+
+Okay! Awesome! Now I see this
+
+```bash
+$ kubectl get pod -A -o wide
+NAMESPACE     NAME                      READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+default       busybox                   1/1     Running   13         26h   10.200.1.5    worker-1   <none>           <none>
+default       nginx-554b9c67f9-f684l    1/1     Running   1          24h   10.200.0.4    worker-0   <none>           <none>
+default       utils                     1/1     Running   0          12h   10.200.2.11   worker-2   <none>           <none>
+kube-system   coredns-b4dc6cf5c-8xlzf   1/1     Running   0          12h   10.200.0.6    worker-0   <none>           <none>
+kube-system   coredns-b4dc6cf5c-hbvsd   1/1     Running   0          12h   10.200.2.10   worker-2   <none>           <none>
+```
+
+and from inside the utils pod, I can do this
+
+```bash
+$ execpod -a
+
+ kubectl exec --namespace='default' utils -c utils -it sh
+
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl kubectl exec [POD] -- [COMMAND] instead.
+# bash
+root@utils:/# nslookup kubernetes
+Server:         10.32.0.10
+Address:        10.32.0.10#53
+
+Name:   kubernetes.default.svc.cluster.local
+Address: 10.32.0.1
+
+root@utils:/# nslookup nginx
+Server:         10.32.0.10
+Address:        10.32.0.10#53
+
+Name:   nginx.default.svc.cluster.local
+Address: 10.32.0.56
+
+root@utils:/# curl nginx
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+
+root@utils:/# curl -k https://kubernetes/version
+{
+  "major": "1",
+  "minor": "15",
+  "gitVersion": "v1.15.3",
+  "gitCommit": "2d3c76f9091b6bec110a5e63777c332469e0cba2",
+  "gitTreeState": "clean",
+  "buildDate": "2019-08-19T11:05:50Z",
+  "goVersion": "go1.12.9",
+  "compiler": "gc",
+  "platform": "linux/amd64"
+}
+```
+
+In between accessing `kubernetes` service was not working, because I made
+mistakes in the `curl` command 🤦‍♂ like no `https` and then putting `6443`
+as the port number when none was required as service was exposed at `443`
+and targeted `6443` behind it on it's own. Anyways, everything works now!
+
+I guess I need to check how to retain the IP routes and also I think the
+IP forwarding stuff that I did, may not have been needed. I mean, according
+to this
+
+https://www.ducea.com/2006/08/01/how-to-enable-ip-forwarding-in-linux/
+
+the linux servers I have, have IP forwarding enabled for IPv4. I'll check it
+out by disabling everything that I did and also may be disabling this by
+default enabled thing and see how it causes issues and also understand what
+it means to do IP forwarding!
+
+And I guess I need to write down all the learnings in a crisp manner some
+where ;)
