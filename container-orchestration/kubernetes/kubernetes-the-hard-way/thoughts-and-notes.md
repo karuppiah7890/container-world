@@ -1714,5 +1714,333 @@ I think the next steps are - to make the core dns work and see if the
 networking among pods work - it shouldn't ideally, since I didn't do anything
 with respect to networking - the routes and all. Let's see
 
+---
+
+Okay, today I started my laptop and started the machines and exec pod does not
+work. I was getting the same old error regarding worker host name resolution
+like yesterday. On checking I noticed that `/etc/hosts` file changes have been
+removed. Checking the comments I realized it was a managed file and to
+persist changes I make to it, I need to more stuff
+
+For now, I'm changing all the `/etc/cloud/templates/hosts.debian.tmpl` template
+files in all the controller instances to include the worker instance DNS
+entries (IPs)
+
+After changing it in all machines using tmux synchronize panes feature, I saved
+it and restarted the machines using 
+
+```bash
+$ sudo shutdown -r now
+```
+
+The status always says `Starting` in `multipass ls` for some reason. But once I
+type in `multipass shell <machine-name>` then it opens shell and when I get out
+and check status, I can see it changes the status to `Running`
+
+And cool, now the the DNS entries persist! ;) :D 
+
+About the `kubernetes` service having IP `10.0.0.1`, I backed it up and deleted
+it, and now it's good! The coredns pod is giving a different error now though.
+
+```bash
+$ kubectl logs -f coredns-74576b4776-7tddb -n kube-system
+.:53
+2020-06-02T02:26:14.589Z [INFO] plugin/reload: Running configuration MD5 = fbb756dad13bce75afc40db627b38529
+2020-06-02T02:26:14.589Z [INFO] CoreDNS-1.6.2
+2020-06-02T02:26:14.589Z [INFO] linux/amd64, go1.12.8, 795a3eb
+CoreDNS-1.6.2
+linux/amd64, go1.12.8, 795a3eb
+2020-06-02T02:26:14.595Z [ERROR] plugin/errors: 2 9081000483047803871.5836840357274749367. HINFO: plugin/loop: no next plugin found
+2020-06-02T02:29:18.565Z [ERROR] plugin/errors: 2 google.com. AAAA: plugin/loop: no next plugin found
+2020-06-02T02:29:32.973Z [ERROR] plugin/errors: 2 duckduckgo.com. AAAA: plugin/loop: no next plugin found
+```
+
+Some kind of plugin issue? Idk, I'm going to check about it.
+
+So, I found this issue
+https://github.com/coredns/coredns/issues/2166
+
+I'm going to add a proxy for now. I tried adding proxy and that failed with
+an error saying `proxy` is an unknown / undefined thing.
+
+I later realized there's no plugin or stuff like that now, in the latest
+version I think it's called `forward` - https://coredns.io/plugins/forward/ .
+I also checked basically what `loop` is - https://coredns.io/plugins/loop/ .
+`loop` looks like a good thing, it's supposed to help find loops in DNS queries
+I think? and I think the information in this page can help me. I need to read it
+and understand it better. Also, I tried some stuff. I added `forward` plugin
+like this `forward . 8.8.8.8` and now coredns does not give any loop errors.
+
+And I did a lot of meddling in the pods, to finally see some results which don't
+make sense yet. This is what is the final thing that I saw:
+
+```bash
+$ kubectl run --generator=run-pod/v1 utils --image=arunvelsriram/utils -n default --command -- sleep 36000
+$ execpod -a
+
+ kubectl exec --namespace='default' utils -c utils -it sh
+
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl kubectl exec [POD] -- [COMMAND] instead.
+# bash
+root@utils:/# cat /etc/resolv.conf
+nameserver 8.8.8.8
+
+search default.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.32.0.10
+options ndots:5
+
+root@utils:/# dig @10.32.0.10 nginx.default.svc.cluster.local
+;; reply from unexpected source: 10.200.2.10#53, expected 10.32.0.10#53
+;; reply from unexpected source: 10.200.2.10#53, expected 10.32.0.10#53
+;; reply from unexpected source: 10.200.2.10#53, expected 10.32.0.10#53
+
+; <<>> DiG 9.11.3-1ubuntu1.12-Ubuntu <<>> @10.32.0.10 nginx.default.svc.cluster.local
+; (1 server found)
+;; global options: +cmd
+;; connection timed out; no servers could be reached
+
+root@utils:/# dig @10.32.0.10 kubernetes.default.svc.cluster.local
+
+; <<>> DiG 9.11.3-1ubuntu1.12-Ubuntu <<>> @10.32.0.10 kubernetes.default.svc.cluster.local
+; (1 server found)
+;; global options: +cmd
+;; connection timed out; no servers could be reached
+root@utils:/#
+root@utils:/# dig @10.32.0.10 kubernetes.default.svc.cluster.local
+;; reply from unexpected source: 10.200.2.10#53, expected 10.32.0.10#53
+;; reply from unexpected source: 10.200.2.10#53, expected 10.32.0.10#53
+;; reply from unexpected source: 10.200.2.10#53, expected 10.32.0.10#53
+
+; <<>> DiG 9.11.3-1ubuntu1.12-Ubuntu <<>> @10.32.0.10 kubernetes.default.svc.cluster.local
+; (1 server found)
+;; global options: +cmd
+;; connection timed out; no servers could be reached
+
+root@utils:/# dig @10.200.2.10 nginx.default.svc.cluster.local
+
+; <<>> DiG 9.11.3-1ubuntu1.12-Ubuntu <<>> @10.200.2.10 nginx.default.svc.cluster.local
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 29700
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: de682c09c92b5c5b (echoed)
+;; QUESTION SECTION:
+;nginx.default.svc.cluster.local. IN    A
+
+;; ANSWER SECTION:
+nginx.default.svc.cluster.local. 2 IN   A       10.32.0.56
+
+;; Query time: 1 msec
+;; SERVER: 10.200.2.10#53(10.200.2.10)
+;; WHEN: Tue Jun 02 06:10:46 UTC 2020
+;; MSG SIZE  rcvd: 119
+
+root@utils:/# dig @10.200.2.10 kubernetes.default.svc.cluster.local
+
+; <<>> DiG 9.11.3-1ubuntu1.12-Ubuntu <<>> @10.200.2.10 kubernetes.default.svc.cluster.local
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 45717
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: 0db7c915d1ca79bc (echoed)
+;; QUESTION SECTION:
+;kubernetes.default.svc.cluster.local. IN A
+
+;; ANSWER SECTION:
+kubernetes.default.svc.cluster.local. 5 IN A    10.32.0.1
+
+;; Query time: 1 msec
+;; SERVER: 10.200.2.10#53(10.200.2.10)
+;; WHEN: Tue Jun 02 06:17:38 UTC 2020
+;; MSG SIZE  rcvd: 129
+
+root@utils:/# dig @10.200.2.10 kubernetes.svc.cluster.local
+
+; <<>> DiG 9.11.3-1ubuntu1.12-Ubuntu <<>> @10.200.2.10 kubernetes.svc.cluster.local
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN, id: 11906
+;; flags: qr aa rd; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: ec1b93cf41607609 (echoed)
+;; QUESTION SECTION:
+;kubernetes.svc.cluster.local.  IN      A
+
+;; AUTHORITY SECTION:
+cluster.local.          5       IN      SOA     ns.dns.cluster.local. hostmaster.cluster.local. 1591067821 7200 1800 86400 5
+
+;; Query time: 2 msec
+;; SERVER: 10.200.2.10#53(10.200.2.10)
+;; WHEN: Tue Jun 02 06:17:51 UTC 2020
+;; MSG SIZE  rcvd: 162
+
+```
+
+If you notice, I have actually added `8.8.8.8` name server in the pod as the
+first thing. I realized that nothing was working in the pod in terms of
+reaching out to the Internet, for example to fetch the repository index for
+all the packages through `apt update`, as the coredns server was not working
+for some reason and `nslookup` was always stuck and I had to meddle with
+`/etc/resolv.conf` to get something to work. I don't know how `/etc/resolv.conf`
+exactly works, so that's something to lookout for. Ideally I wouldn't wanna
+change anything in it and still would want everything to work just as is. About
+that, I was debugging stuff.
+
+I installed `dig` using `apt update; apt install dnsutils`
+
+I started checking the results of `dig` for kubernetes service. The first thing
+that I saw was it wasn't giving any proper replies - that is, no replies, no
+IPs. I think this was because I had set the name server to be `8.8.8.8` in the
+`/etc/resolv.conf`, so I started using the `@` to mention the name server to use
+and I noticed it said that it was getting a reply from an unexpected source as
+you see above.
+
+So, I started using the unexpected source mentioned in the output as the
+nameserver and I got the IP addresses of the kubernetes services. But yeah,
+only for Fully Qualified Domain Names (FQDNs) I think, as you can see above.
+It didn't work for `kubernetes` or `nginx` which works in applications for
+some reason, but not in `dig`. 
+
+I need to answer quite some questions now actually! 🙈
+
+To start with, yes, the kubernetes service `kube-dns` with `10.32.0.10` is
+supposed be the name server that's supposed to be working and helping with
+the name resolution with respect to kubernetes services and the pods behind
+the kubernetes service are the coredns pods.
+
+But what's working now is, the name server at IP `10.200.2.10`. Now, this IP
+is part of the `10.200.2.0/24` network, which is the network in the `worker-2`
+instance and you can see the `worker-2` instances having the first IP as one
+of it's node IPs
+
+```bash
+ubuntu@worker-2:~$ hostname -I
+192.168.64.34 10.200.2.1
+
+ubuntu@worker-2:~$ ifconfig cnio0
+cnio0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.200.2.1  netmask 255.255.255.0  broadcast 10.200.2.255
+        inet6 fe80::40b8:95ff:fe92:925b  prefixlen 64  scopeid 0x20<link>
+        ether 42:b8:95:92:92:5b  txqueuelen 1000  (Ethernet)
+        RX packets 64998  bytes 5078205 (5.0 MB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 52938  bytes 25455996 (25.4 MB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+```
+
+and it's the pod CIDR range in the `worker-2` instance which we setup when
+configuring the CNI (Container Networking Interface) with the bridge
+configuration.
+
+Okay, I just noticed this
+
+```bash
+$ k get pod -A -o wide
+NAMESPACE     NAME                      READY   STATUS    RESTARTS   AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+default       busybox                   1/1     Running   6          17h     10.200.1.5    worker-1   <none>           <none>
+default       nginx-554b9c67f9-f684l    1/1     Running   1          15h     10.200.0.4    worker-0   <none>           <none>
+default       utils                     1/1     Running   0          3h8m    10.200.2.11   worker-2   <none>           <none>
+kube-system   coredns-b4dc6cf5c-8xlzf   1/1     Running   0          3h17m   10.200.0.6    worker-0   <none>           <none>
+kube-system   coredns-b4dc6cf5c-hbvsd   1/1     Running   0          3h17m   10.200.2.10   worker-2   <none>           <none>
+```
+
+So, one of the coredns pods have the IP `10.200.2.10`. Right! So, we need to see
+what's going on and why the `dig` didn't work with service IP but worked with
+pod IP. Hmm. Also, let me also simply try another node pod IP, in this case,
+from utils pod in `worker-2` to `coredns-b4dc6cf5c-8xlzf` in `worker-0`.
+Yeah, it just gets stuck, this is because of the routing rules I believe.
+
+About the `dig` issue with service IP, I think I'm going to have to check
+what IP forwarding is now. Seeing this is a matter of some loadbalancing by
+the kubernetes service, which is not working, and the `dig` telling stuff
+about getting `reply from unexpected source` etc, I want to see if the thing
+I missed out before, that is, delegated for later - IP forwarding, is biting
+me just now.
+
+Need to learn what's IP forwarding first! 😅
+
+And I read this article to see some `dig` stuff
+https://linuxize.com/post/how-to-use-dig-command-to-query-dns-in-linux/
+
+Now I read some stuff about how to do IP forwarding. I still am yet to learn
+what it exactly does.
+
+https://www.ducea.com/2006/08/01/how-to-enable-ip-forwarding-in-linux/
+
+Looking at this, it said, set `net.bridge.bridge-nf-call-iptables` to `1`
+https://github.com/mmumshad/kubernetes-the-hard-way/blob/master/docs/02-compute-resources.md
+
+And this helped too
+
+https://github.com/rak8s/rak8s/issues/13
+
+I finally did this
+
+```bash
+$ sudo modprobe br_netfilter
+$ vi /etc/sysctl.conf
+...
+# add this line
+net.bridge.bridge-nf-call-iptables=1
+$  sysctl net.bridge.bridge-nf-call-iptables
+net.bridge.bridge-nf-call-iptables = 1
+```
+
+and it should say the value of `net.bridge.bridge-nf-call-iptables` is `1`.
+
+Anyways, that's not working for the `dig` with `10.32.0.10` as dns server IP.
+
+I need to understand how to enable verbose mode for `dig` and understand what's
+happening behind the scenes, and also read more about IP forwarding to see
+if it's related. I think checking how services connect to pods will help too,
+since in this case, pod IP works for `dig`, service IP doesn't!
+
+Okay, so I read a bit about how Kubernetes Services work! :) Over here
+https://kubernetes.io/docs/concepts/services-networking/service/
+
+And I also saw how the kube proxy helps in the working of the Services, and
+that the Cluster IP of the services are virtual IPs.
+
+https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+
+And the kube proxy I have installed, it is running in `iptables` proxy mode,
+which is one among the other proxy modes, to help one pod to connect to another
+pod using the Kubernetes service
+
+https://kubernetes.io/docs/concepts/services-networking/service/#proxy-mode-iptables
+
+In my case, I went and checked the kube-proxy in the node where my pod was
+running and it had some error logs. Something about TLS handshake issues,
+timeout or something. I simply restarted it to see if the error persists and
+it didn't and the `dig` just worked, and I removed the `8.8.8.8` entry too.
+But `dig` worked only sometimes, not all times.
+
+Now, this was because one of the two coredns pods is in another node, so it will
+have a different kind of pod IP and I haven't put any routing rules or config
+for routing from one node to another and hence the issues, sometimes, but when
+the coredns pod in the same node was accessed, it worked ;) :)
+
+Next thing to do is, add routing to the worker instances to make sure that
+the pods in one node can access pods in another node
 
 
