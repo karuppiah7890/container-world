@@ -2253,6 +2253,8 @@ it means to do IP forwarding!
 And I guess I need to write down all the learnings in a crisp manner some
 where ;)
 
+---
+
 So I encountered the issue with the `nslookup` again. 
 
 Initially my ip routes for worker nodes were missing in the worker nodes,
@@ -2438,3 +2440,168 @@ clientConnection:
 mode: "iptables"
 clusterCIDR: "10.200.0.0/16"
 ```
+
+---
+
+Today I also learned how `kubernetes` service points to the master api.
+I mean, some parts of it are obvious. For example, we know it points to the
+master API, and what are the ways to point to the master API? The load balancer
+and the controller node IPs themselves. And the port at which the api servers
+are running is 6443
+
+If you check the `kubernetes` service, you see no label selectors in it.
+That's what I initially looked for thinking how it connects to the API server.
+It just had some metadata labels and port and target port and that's it.
+See below. No label selectors and stuff.
+
+```
+$ kubectl get service kubernetes -n default -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2020-06-02T02:25:25Z"
+  labels:
+    component: apiserver
+    provider: kubernetes
+  name: kubernetes
+  namespace: default
+  resourceVersion: "35338"
+  selfLink: /api/v1/namespaces/default/services/kubernetes
+  uid: ff184d6d-fc39-4cdb-a634-304c988d7a16
+spec:
+  clusterIP: 10.32.0.1
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 6443
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+```
+
+But hey, label selectors is to select pods based on labels and then route
+traffic to those pods using their pod IPs. But in our case, the api servers,
+are running in the controller nodes as simple linux processes and not as
+containers or pods.
+
+The main thing behind every kubernetes service is it's endpoints!! And of
+course, if you check the endpoints for `kubernetes` service, you will notice
+something cool ;)
+
+```bash
+$ kubectl get endpoints kubernetes -n default -o yaml
+apiVersion: v1
+kind: Endpoints
+metadata:
+  creationTimestamp: "2020-06-02T02:25:25Z"
+  name: kubernetes
+  namespace: default
+  resourceVersion: "113614"
+  selfLink: /api/v1/namespaces/default/endpoints/kubernetes
+  uid: ddfe7976-5806-4d40-876e-d4d7d5067127
+subsets:
+- addresses:
+  - ip: 192.168.64.28
+  - ip: 192.168.64.29
+  - ip: 192.168.64.30
+  ports:
+  - name: https
+    port: 6443
+    protocol: TCP
+```
+
+So, that's how the `kubernetes` service works! Through the controller node IPs
+in the endpoints configuration! That's how kubernetes services can also
+route to IPs other than pod IPs. IPs which can be within the cluster, or
+even outside. Of course reachable IPs!
+
+Okay, now, I started playing with `iptables-save` to understand how
+kube-proxy helps with routing the cluster IP of `kubernetes` service to
+the node IPs that we are seeing in the `kubernetes` endpoints. This is what
+I found out in worker-2
+
+```bash
+ubuntu@worker-2:~$ sudo iptables-save | grep kubernetes
+-A INPUT -m conntrack --ctstate NEW -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A INPUT -m conntrack --ctstate NEW -m comment --comment "kubernetes externally-visible service portals" -j KUBE-EXTERNAL-SERVICES
+-A FORWARD -m comment --comment "kubernetes forwarding rules" -j KUBE-FORWARD
+-A FORWARD -m conntrack --ctstate NEW -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A OUTPUT -m conntrack --ctstate NEW -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A KUBE-FIREWALL -m comment --comment "kubernetes firewall for dropping marked packets" -m mark --mark 0x8000/0x8000 -j DROP
+-A KUBE-FORWARD -m comment --comment "kubernetes forwarding rules" -m mark --mark 0x4000/0x4000 -j ACCEPT
+-A KUBE-FORWARD -s 10.200.0.0/16 -m comment --comment "kubernetes forwarding conntrack pod source rule" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A KUBE-FORWARD -d 10.200.0.0/16 -m comment --comment "kubernetes forwarding conntrack pod destination rule" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A POSTROUTING -m comment --comment "kubernetes postrouting rules" -j KUBE-POSTROUTING
+-A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -m mark --mark 0x4000/0x4000 -j MASQUERADE
+-A KUBE-SERVICES ! -s 10.200.0.0/16 -d 10.32.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-MARK-MASQ
+-A KUBE-SERVICES -d 10.32.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
+-A KUBE-SERVICES -m comment --comment "kubernetes service nodeports; NOTE: this must be the last rule in this chain" -m addrtype --dst-type LOCAL -j KUBE-NODEPORTS
+```
+
+The first thing that I did was `grep`ped for `kubernetes` in the output of
+`iptables-save`. If you notice above, there's a line that says this
+
+```
+-A KUBE-SERVICES -d 10.32.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
+```
+
+And that's the line we are looking for!! I don't know what it exactly means,
+but hey, I can see that it mentions the `kubernetes` service cluster IP
+`10.32.0.1/32` which is a IP range, but with just one IP, because the subnet
+mask `/32` means `255.255.255.255`! So, it just denotes `10.32.0.1`! It also
+tells a comment and in it mentions the namespace and name of the service, which
+is `default` and `kubernetes` and then the port name `https` and the type of
+service `cluster IP` and then the protocol `tcp` and the port of the service,
+which is `443`. And then, I see a weird string with something like a serial
+number `KUBE-SVC-NPX46M4PTMTKRN6Y`. I then grep this weird string in the
+`iptables-save` output
+
+```bash
+ubuntu@worker-2:~$ sudo iptables-save | grep KUBE-SVC-NPX46M4PTMTKRN6Y
+:KUBE-SVC-NPX46M4PTMTKRN6Y - [0:0]
+-A KUBE-SERVICES -d 10.32.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -m statistic --mode random --probability 0.33332999982 -j KUBE-SEP-ZAYIJWBSLV5HFKJ5
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-75I2N7HXZ2CIT6QY
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -j KUBE-SEP-7DQATKWIRI4F7V6C
+```
+
+And I find the above. I see some more weird strings, and some mode called
+`random` and some probability ? I think it's the logic for random choosing of
+IPs in the endpoints? may be. I don't know. I started checking details about
+the weird strings by grepping them in the `iptables-save` output!
+
+And I saw this
+
+```bash
+ubuntu@worker-2:~$ sudo iptables-save | grep KUBE-SEP-ZAYIJWBSLV5HFKJ5
+:KUBE-SEP-ZAYIJWBSLV5HFKJ5 - [0:0]
+-A KUBE-SEP-ZAYIJWBSLV5HFKJ5 -s 192.168.64.28/32 -j KUBE-MARK-MASQ
+-A KUBE-SEP-ZAYIJWBSLV5HFKJ5 -p tcp -m tcp -j DNAT --to-destination 192.168.64.28:6443
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -m statistic --mode random --probability 0.33332999982 -j KUBE-SEP-ZAYIJWBSLV5HFKJ5
+
+ubuntu@worker-2:~$ sudo iptables-save | grep KUBE-SEP-75I2N7HXZ2CIT6QY
+:KUBE-SEP-75I2N7HXZ2CIT6QY - [0:0]
+-A KUBE-SEP-75I2N7HXZ2CIT6QY -s 192.168.64.29/32 -j KUBE-MARK-MASQ
+-A KUBE-SEP-75I2N7HXZ2CIT6QY -p tcp -m tcp -j DNAT --to-destination 192.168.64.29:6443
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-75I2N7HXZ2CIT6QY
+
+ubuntu@worker-2:~$ sudo iptables-save | grep KUBE-SEP-7DQATKWIRI4F7V6C
+:KUBE-SEP-7DQATKWIRI4F7V6C - [0:0]
+-A KUBE-SEP-7DQATKWIRI4F7V6C -s 192.168.64.30/32 -j KUBE-MARK-MASQ
+-A KUBE-SEP-7DQATKWIRI4F7V6C -p tcp -m tcp -j DNAT --to-destination 192.168.64.30:6443
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -j KUBE-SEP-7DQATKWIRI4F7V6C
+```
+
+You can see that each weird string with serial numbers corresponds to an IP.
+It also mentions the target port `6443`. 
+
+I'm gonna have to next dig up and understand what this `iptables-save` output
+means and what's the difference from `iptables -L` or `iptables -S` and all.
+
+And also check why `sudo modprobe br_netfilter` is a big deal. Probably
+something about ip forwarding? Idk. Basically I need to understand the
+`reply from unexpected source...` errors.
