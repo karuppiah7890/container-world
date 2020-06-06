@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: dobby-1
-  labels:
-    app: dobby
+  name: dobby-with-nginx
 spec:
   containers:
   - name: dobby
     image: thecasualcoder/dobby
+  - name: nginx
+    image: nginx
