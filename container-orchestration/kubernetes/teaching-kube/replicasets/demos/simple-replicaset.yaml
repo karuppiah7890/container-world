@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: dobby
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dobby
+  template:
+    metadata:
+      name: dobby
+      labels:
+        app: dobby
+        appVersion: "1"
+    spec: 
+      containers:
+      - name: dobby
+        image: thecasualcoder/dobby
