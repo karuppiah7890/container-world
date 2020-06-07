@@ -2924,3 +2924,22 @@ Address:        10.32.0.10#53
 Name:   kube-dns.kube-system.svc.cluster.local
 Address: 10.32.0.10
 ```
+
+---
+
+I tried an experiment now. So, I tried to stop a worker node (worker-0) to see what
+happens. After some time the node was marked as `NotReady`, but the pods in the
+node, they always showed up as running. Of course they weren't running. Idk
+why it showed like that. I waited for quite some times. At least a minute.
+Anyways, I even tried to execute into it but that didn't work, that's because
+of course the node in which the pod was running is down, that's why.
+
+I finally cordoned it using `kubectl cordon worker-0` and later drained it with
+`kubectl drain worker-0`. During drain it told that it's already cordoned
+and tried to evict the pods running the node. But it waited for a long time
+and pods showed up as `Terminating` for a long time. This was because the node
+wasn't there to tell if the pod had stopped running or not, because the node
+was down! Damn thing. Finally I started off the node and the eviction process
+finished and node showed up as ready. I need to try this again. But the drain
+worked quite well in the sense that it did create new pods to replace the
+pods in `worker-0` node that was being drained
