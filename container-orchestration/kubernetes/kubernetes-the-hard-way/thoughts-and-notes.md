@@ -2605,3 +2605,322 @@ means and what's the difference from `iptables -L` or `iptables -S` and all.
 And also check why `sudo modprobe br_netfilter` is a big deal. Probably
 something about ip forwarding? Idk. Basically I need to understand the
 `reply from unexpected source...` errors.
+
+---
+
+So, I'm planning to make sure that the ip routes persist in all the worker
+nodes so that pods can connect with each other across nodes!
+
+So, I'm checking the ip related config files that were mentioned online, for
+example here for ubuntu
+
+https://www.cyberciti.biz/tips/configuring-static-routes-in-debian-or-red-hat-linux-systems.html
+
+```bash
+ubuntu@worker-0:~$ cat /etc/network/interfaces
+# ifupdown has been replaced by netplan(5) on this system.  See
+# /etc/netplan for current configuration.
+# To re-enable ifupdown on this system, you can run:
+#    sudo apt install ifupdown
+```
+
+As you can see, it tells me something about the some program called `ifupdown`
+being replaced by `netplan`, and then I check about `/etc/netplan` and I see
+this
+
+```bash
+ubuntu@worker-0:~$ ls /etc/netplan/
+50-cloud-init.yaml
+ubuntu@worker-0:~$ cat /etc/netplan/50-cloud-init.yaml
+# This file is generated from information provided by the datasource.  Changes
+# to it will not persist across an instance reboot.  To disable cloud-init's
+# network configuration capabilities, write a file
+# /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:
+# network: {config: disabled}
+network:
+    ethernets:
+        enp0s2:
+            dhcp4: true
+            match:
+                macaddress: ca:92:2a:df:0d:dd
+            set-name: enp0s2
+    version: 2
+```
+
+So, it tells me that if I change stuff here, it will NOT persist across a
+reboot. And it tells how to disable the cloud-init network config.
+
+I'm checking how to configure using cloud-init's network config, and I gotta
+see how the above comes up
+
+I noticed this
+
+```bash
+ubuntu@worker-0:~$ ls /etc/cloud/cloud.cfg.d/
+05_logging.cfg  90_dpkg.cfg  README
+ubuntu@worker-0:~$ cat /etc/cloud/cloud.cfg.d/90_dpkg.cfg
+# to update this file, run dpkg-reconfigure cloud-init
+datasource_list: [ NoCloud, ConfigDrive, OpenNebula, DigitalOcean, Azure, AltCloud, OVF, MAAS, GCE, OpenStack, CloudSigma, SmartOS, Bigstep, Scaleway, AliYun, Ec2, CloudStack, Hetzner, IBMCloud, Exoscale, None ]
+```
+
+I could see some files and couldn't find anything about networks that I'm
+looking for
+
+```bash
+ubuntu@worker-0:~$ grep -r -i network /etc/cloud/cloud.cfg.d/
+ubuntu@worker-0:~$ echo $?
+1
+ubuntu@worker-0:~$ grep -r -i network /etc/cloud/
+/etc/cloud/templates/chrony.conf.rhel.tmpl:# Allow NTP client access from local network.
+/etc/cloud/templates/chrony.conf.fedora.tmpl:# Allow NTP client access from local network.
+/etc/cloud/templates/ntp.conf.debian.tmpl:# next lines.  Please do this only if you trust everybody on the network!
+/etc/cloud/templates/ntp.conf.ubuntu.tmpl:# next lines.  Please do this only if you trust everybody on the network!
+/etc/cloud/templates/ntp.conf.fedora.tmpl:# Hosts on local network are less restricted.
+/etc/cloud/templates/ntp.conf.rhel.tmpl:# Hosts on local network are less restricted.
+/etc/cloud/templates/chrony.conf.opensuse.tmpl:# Allow NTP client access from local network.
+/etc/cloud/templates/chrony.conf.sles.tmpl:# Allow NTP client access from local network.
+```
+
+I started checking these docs for network config
+
+https://cloudinit.readthedocs.io/en/latest/topics/network-config.html
+https://cloudinit.readthedocs.io/en/latest/topics/network-config-format-v2.html#network-config-v2
+
+The only thing on my mind now is - if I do put some config for routing the Pod
+IP CIDR ranges to the appropriate worker nodes, would it merge with the existing
+config or will it replace the existing config. I mean, the above network config,
+it has mac address and details about the network interface. I guess there's only
+one way to find out if it will mess up with things or not. For now it looks
+like this, the network interfaces
+
+```bash
+ubuntu@worker-0:~$ ifconfig
+cnio0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.200.0.1  netmask 255.255.255.0  broadcast 10.200.0.255
+        inet6 fe80::e0a9:b9ff:fe2a:cade  prefixlen 64  scopeid 0x20<link>
+        ether e2:a9:b9:2a:ca:de  txqueuelen 1000  (Ethernet)
+        RX packets 3125  bytes 214411 (214.4 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 3101  bytes 951358 (951.3 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+enp0s2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.64.32  netmask 255.255.255.0  broadcast 192.168.64.255
+        inet6 fe80::c892:2aff:fedf:ddd  prefixlen 64  scopeid 0x20<link>
+        ether ca:92:2a:df:0d:dd  txqueuelen 1000  (Ethernet)
+        RX packets 8579  bytes 3889777 (3.8 MB)
+        RX errors 0  dropped 0  overruns 0  frame 5
+        TX packets 7281  bytes 759333 (759.3 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 116  bytes 9530 (9.5 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 116  bytes 9530 (9.5 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+veth71fa7db8: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet6 fe80::e8fd:f7ff:fe1b:218f  prefixlen 64  scopeid 0x20<link>
+        ether ea:fd:f7:1b:21:8f  txqueuelen 0  (Ethernet)
+        RX packets 3111  bytes 257133 (257.1 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 3128  bytes 953372 (953.3 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+vethd33b3de2: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet6 fe80::d44d:2bff:fea9:1bb5  prefixlen 64  scopeid 0x20<link>
+        ether d6:4d:2b:a9:1b:b5  txqueuelen 0  (Ethernet)
+        RX packets 15  bytes 1118 (1.1 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 43  bytes 3270 (3.2 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+```
+
+And I'm looking at this stack overflow answer too
+
+https://askubuntu.com/questions/1062902/ubuntu-18-04-netplan-static-routes#1062931
+
+So, I tried this
+
+```bash
+ubuntu@worker-0:~$ sudo vi /etc/cloud/cloud.cfg.d/custom-pod-ip-cidr-routes.cfg
+```
+
+And added this content
+
+```
+network:
+  version: 2
+  ethernets:
+    enp0s2:
+      routes:
+      - to: 10.200.1.0/24
+        via: 192.168.64.33
+      - to: 10.200.2.0/24
+        via: 192.168.64.34
+```
+
+I tried multiple times and this is the last config I used
+
+```
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s2:
+      dhcp4: true
+      match:
+        macaddress: ca:92:2a:df:0d:dd
+      set-name: enp0s2
+      routes:
+      - to: 10.200.1.0/24
+        via: 192.168.64.33
+      - to: 10.200.2.0/24
+        via: 192.168.64.34
+```
+
+But none of them worked. `ip route show` never showed the pod IPs that I
+wanted to see. Infact with the above config, I noticed it remove container
+network interface.
+
+I'm gonna try to disable cloud init network config and try to configure
+`netplan` config myself! ;) :D 
+
+```bash
+$ sudo vi /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+```
+
+```
+network:
+  config: disabled
+```
+
+And every time I'm changing configs, I'm doing a restart using
+
+```bash
+$ multipass restart worker-0
+```
+
+And I changed the `netplan` file too
+
+```bash
+$ sudo vi /etc/netplan/50-cloud-init.yaml
+$ cat /etc/netplan/50-cloud-init.yaml
+# This file is generated from information provided by the datasource.  Changes
+# to it will not persist across an instance reboot.  To disable cloud-init's
+# network configuration capabilities, write a file
+# /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg with the following:
+# network: {config: disabled}
+network:
+    ethernets:
+        enp0s2:
+            dhcp4: true
+            match:
+                macaddress: ca:92:2a:df:0d:dd
+            set-name: enp0s2
+            routes:
+            - to: 10.200.1.0/24
+              via: 192.168.64.33
+            - to: 10.200.2.0/24
+              via: 192.168.64.34
+    version: 2
+```
+
+And it worked! :D 
+
+```bash
+ubuntu@worker-0:~$ ip route show
+default via 192.168.64.1 dev enp0s2 proto dhcp src 192.168.64.32 metric 100
+10.200.0.0/24 dev cnio0 proto kernel scope link src 10.200.0.1
+10.200.1.0/24 via 192.168.64.33 dev enp0s2 proto static
+10.200.2.0/24 via 192.168.64.34 dev enp0s2 proto static
+192.168.64.0/24 dev enp0s2 proto kernel scope link src 192.168.64.32
+192.168.64.1 dev enp0s2 proto dhcp scope link src 192.168.64.32 metric 100
+```
+
+I made the changes accordingly in the other worker nodes and restarted them!
+
+And `ip route show` looks good. For a second I couldn't see the CNI interface
+route in one of the nodes, but after sometime it came. Hmm. I guess it takes
+time for some stuff to come up? Idk
+
+I'mma check the connectivity between the different pods now. I don't think
+it will work though. Without the 
+
+```bash
+$ sudo modprobe br_netfilter
+```
+
+Till then I can check if it works or not using this
+
+```bash
+$ sysctl net.bridge.bridge-nf-call-iptables
+sysctl: cannot stat /proc/sys/net/bridge/bridge-nf-call-iptables: No such file or directory
+```
+
+For now it's not working!
+
+I followed this answer
+
+https://unix.stackexchange.com/questions/71064/systemd-automate-modprobe-command-at-boot-time
+
+And things worked! I did this
+
+```bash
+$ sudo vi /etc/modules-load.d/br_netfilter.conf
+$ cat /etc/modules-load.d/br_netfilter.conf
+br_netfilter
+```
+
+And I restarted the machine and it worked!
+
+```bash
+$ sysctl net.bridge.bridge-nf-call-iptables
+net.bridge.bridge-nf-call-iptables = 1
+```
+
+I did make a mistake initially 🤦‍♂ I named the file as `br_netfilter` instead of
+`br_netfilter.conf`. I think the `.conf` matters, and probably not what's in
+front of it 😆 Anyways. It works so I'm gonna do it for all worker nodes now!
+
+Now that those steps are automated, I don't have to run them any more everytime
+I start off the cluster! So I don't have to worry about things not working
+here after! :) ;)
+
+I just gotta check if the pod networking and services and everything is working!
+;)
+
+I'm running the utils pod to do the check! :) I also gotta create some
+services. I got rid of some of them!
+
+```bash
+$ kubectl run --generator=run-pod/v1 utils --image=arunvelsriram/utils -n default --command -- sleep 36000
+```
+
+Pod to pod connectivity and nslookup worked! I think that's good enough! :D
+Since the nslookup works based on the service cluster IP, that's checked too :)
+
+Now I'm gonna do all that again by restarting all the instances once and see
+how it goes. The workers and controllers and loadbalancer too!
+
+It all worked!! Yay!!! :D 
+
+```bash
+root@utils:/# nslookup kubernetes
+Server:         10.32.0.10
+Address:        10.32.0.10#53
+
+Name:   kubernetes.default.svc.cluster.local
+Address: 10.32.0.1
+
+root@utils:/# nslookup kube-dns.kube-system
+Server:         10.32.0.10
+Address:        10.32.0.10#53
+
+Name:   kube-dns.kube-system.svc.cluster.local
+Address: 10.32.0.10
+```
