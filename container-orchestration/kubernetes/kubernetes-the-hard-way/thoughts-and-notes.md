@@ -2943,3 +2943,18 @@ was down! Damn thing. Finally I started off the node and the eviction process
 finished and node showed up as ready. I need to try this again. But the drain
 worked quite well in the sense that it did create new pods to replace the
 pods in `worker-0` node that was being drained
+
+---
+
+Here's a good read on master components of kubernetes
+
+https://medium.com/jorgeacetozi/kubernetes-master-components-etcd-api-server-controller-manager-and-scheduler-3a0179fc8186
+
+I used it to check about the controller manager alone. Need to dig more into it
+later.
+
+I also read a bit about replicasets here
+
+https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+
+---
