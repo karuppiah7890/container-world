@@ -1,0 +1,18 @@
+# Kubernetes
+
+## What is Kubernetes? Why Kubernetes? What problem is it trying to solve?
+
+If you want a resilient and cost effective infrastructure for big scale and one that is easy to maintain, Kubernetes is one solution for it.
+
+What do I mean by resilience? Let's say you deploy your application's first version. It's running well, but suddenly, due to some reason, it crashes. Ideally one of the things you would do is restart the application, other than debugging it. But when it's production, you would just get the logs and make sure it's running by restarting it. Wouldn't it be good if it's done automatically? You could go for a basic process manager which monitors a process and restarts it, for this. That's also one way. In Kubernetes, this feature is present and it will do it automatically for you by having a monitor similar to the one we just spoke about it.
+
+What does cost effective mean? I have seen companies run multiple instances of their microservices in a large infrastructure. What they sometimes do is, for each instance of each of their microservice, they use one VM. And in the cloud, the VMs come in certain sizes only, so, if you are not using a good percentage of the VM's resources, it's wasting the resources, also, when multiple instances are running, it's wasting resources across the cluster of VMs / nodes, which could add up to a lot of unused resources for which the bill is being paid to the cloud service provider. Kubernetes is cost effective actually. In the sense that, it can run multiple applications in the same node / VM. And it also makes sure that the node has enough resources for the application to run by getting information from the user what's the min and / max resources requirements for the application - for example CPU, RAM. Based on the requirements, Kubernetes schedules the application to run in the appropriate node. This is one of the main features of Kubernetes - scheduling, which translates to assigning tasks to nodes when there's a cluster of nodes.
+
+Kubernetes also provides features for service discovery, storage of configurations and secrets and also ways to mount volumes (disks) to the applications, for example Databases like Postgres that need disks.
+
+You could ask if you need Kubernetes when you are just running one node with just a very few applications. May be not. Maybe you could use some other tool to help with automatic restarts and stuff. But when you have lots of applications, which are running on a lot of nodes, and you want to optimize things, you could use Kubernetes. It also helps you to standardize deployments. Kubernetes can help you with access control too, since it's possible that you don't want one team's members accessing another team's applications. Kubernetes is a good choice for large scale microservices architectures, and usually in such cases the org is big and has multiple teams too, and that can also be handled by Kubernetes in terms of access control. 
+
+There are of course other choices of tooling when it comes to such features. Kubernetes is kind of like a all in one stop shop, to get all the features. There are other tools like docker-swarm which has features similar to Kubernetes. There are some tools that each provide different parts of what Kubernetes provides. For example, for scheduling, there's a tool called Nomad. For service discovery, there's a tool called Consul. Consul can also store configurations in it's key value store. There's a tool called Vault to store and manage secrets. 
+
+One thing to note is Kubernetes supports only running containers (containerization)
+
