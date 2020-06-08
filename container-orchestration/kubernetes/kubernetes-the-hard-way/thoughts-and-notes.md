@@ -2958,3 +2958,177 @@ I also read a bit about replicasets here
 https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
 
 ---
+
+So, I wanted to understand how the Kubernetes DNS part works. How every
+container knows the DNS name server to contact and stuff like that.
+
+To start off, I can see that in any container I get into, I can see a file
+at `/etc/resolv.conf` and I see the `kube-dns` service's cluster IP present in
+it, and this service is present in the `kube-system` namespace.
+
+I created the core dns components - service account, cluster role, cluster role
+binding, config map, deployment and a service. It was all in
+[one yaml](kube-resources/coredns.yaml) which we got it like this
+
+```bash
+curl https://storage.googleapis.com/kubernetes-the-hard-way/coredns.yaml -o coredns.yaml
+```
+
+You can clearly see that the cluster IP of the service is fixed in the yaml as
+`10.32.0.10`. That's weird. Anyways, also, in Kubernetes The Hard Way repo,
+the kubelet takes configuration related to the kube dns if you notice here
+
+https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/09-bootstrapping-kubernetes-workers.md#configure-the-kubelet
+
+Notice the config
+
+```yaml
+clusterDomain: "cluster.local"
+clusterDNS:
+  - "10.32.0.10"
+```
+
+And also the config
+
+```yaml
+resolvConf: "/run/systemd/resolve/resolv.conf"
+```
+
+I'm also looking at these links to understand better!
+
+https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+
+https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/
+
+Also, the pod spec has some fields for dns stuff which I found out using docs
+and this
+
+```bash
+$ kubectl explain pod.spec | less
+```
+
+```
+dnsConfig    <Object>
+  Specifies the DNS parameters of a pod. Parameters specified here will be
+  merged to the generated DNS configuration based on DNSPolicy.
+
+dnsPolicy    <string>
+  Set DNS policy for the pod. Defaults to "ClusterFirst". Valid values are
+  'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'. DNS
+  parameters given in DNSConfig will be merged with the policy selected with
+  DNSPolicy. To have DNS options set along with hostNetwork, you have to
+  specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
+```
+
+Currently I see in the pods that `dnsPolicy` field has been set and it has the
+default value of `ClusterFirst` since I didn't explicitly set anything in the
+containers
+
+```bash
+$ kubectl get pod -o yaml | rg -i -C 5 dns
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-wssgq
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: worker-0
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+--
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: default-token-wssgq
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: worker-1
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+```
+
+I need to understand how it all works. Hmm. And this is how the `/etc/resolv.conf`
+looks like
+
+```bash
+$ kubectl exec --namespace='default' dobby-1 -c dobby -it -- sh
+
+# bash
+root@dobby-1:/# cat /etc/resolv.conf
+search default.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.32.0.10
+options ndots:5
+
+root@dobby-1:/#
+```
+
+That's all the information I have. I need to find out how things happen now
+and how the following works the way it works in the pods
+
+```bash
+$ kubectl exec --namespace='default' utils -c utils -it -- sh
+
+# bash
+root@utils:/# nslookup kubernetes
+Server:         10.32.0.10
+Address:        10.32.0.10#53
+
+Name:   kubernetes.default.svc.cluster.local
+Address: 10.32.0.1
+
+root@utils:/# dig kubernetes
+
+; <<>> DiG 9.11.3-1ubuntu1.11-Ubuntu <<>> kubernetes
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN, id: 16571
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+;; QUESTION SECTION:
+;kubernetes.                    IN      A
+
+;; AUTHORITY SECTION:
+.                       30      IN      SOA     a.root-servers.net. nstld.verisign-grs.com. 2020060802 1800 900 604800 86400
+
+;; Query time: 39 msec
+;; SERVER: 10.32.0.10#53(10.32.0.10)
+;; WHEN: Mon Jun 08 17:48:05 UTC 2020
+;; MSG SIZE  rcvd: 114
+
+root@utils:/# dig kubernetes.default.svc.cluster.local
+
+; <<>> DiG 9.11.3-1ubuntu1.11-Ubuntu <<>> kubernetes.default.svc.cluster.local
+;; global options: +cmd
+;; Got answer:
+;; WARNING: .local is reserved for Multicast DNS
+;; You are currently testing what happens when an mDNS query is leaked to DNS
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 59757
+;; flags: qr aa rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+;; WARNING: recursion requested but not available
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 4096
+; COOKIE: 1ddbc17759c3ce85 (echoed)
+;; QUESTION SECTION:
+;kubernetes.default.svc.cluster.local. IN A
+
+;; ANSWER SECTION:
+kubernetes.default.svc.cluster.local. 5 IN A    10.32.0.1
+
+;; Query time: 2 msec
+;; SERVER: 10.32.0.10#53(10.32.0.10)
+;; WHEN: Mon Jun 08 17:48:18 UTC 2020
+;; MSG SIZE  rcvd: 129
+```
+
+`dig` worked only with the FQDN - Fully Qualified Domain Name. At least that's
+how it looks like. But `nslookup` is not like that, it can just take `kubernetes`
+and still work! :)
+
+This behavior needs explanation too!! :)
