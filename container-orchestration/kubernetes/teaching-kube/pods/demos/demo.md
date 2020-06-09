@@ -1,5 +1,6 @@
 # Demo
 
+- Get nodes
 - Get pods
 - Create a pod
 - Check the pod IP and node in which the pods are running in
