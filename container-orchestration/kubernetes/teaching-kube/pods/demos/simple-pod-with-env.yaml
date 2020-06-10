@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dobby-with-env-1
+  labels:
+    app: dobby-with-env
+spec:
+  containers:
+  - name: dobby
+    image: thecasualcoder/dobby
+    env:
+    - name: DUMMY
+      value: dummy

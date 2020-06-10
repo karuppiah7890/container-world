@@ -18,8 +18,11 @@
 - What happens when containers in a pod restarts?
     - restart reasons
         - kill command
+        - main process in container failed due to some reason
 - How to pass environment variables?
+- Not all fields in a pod can be updated, only some fields can be update ( mutable fields ).
+  Example: ports field in a container in a pod.
 - How to mention ports?
 - Multiple containers in a pod
 - Can we access pod IP from outside the cluster?
-- Port Forwarding a pod
+- Port Forwarding a pod's ports

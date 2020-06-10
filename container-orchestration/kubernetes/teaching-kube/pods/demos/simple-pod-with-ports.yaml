@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dobby-with-ports-1
+  labels:
+    app: dobby
+spec:
+  containers:
+  - name: dobby
+    image: thecasualcoder/dobby
+    ports:
+    - containerPort: 4444
+      name: http
