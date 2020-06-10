@@ -26,3 +26,18 @@
 - Multiple containers in a pod
 - Can we access pod IP from outside the cluster?
 - Port Forwarding a pod's ports
+
+---
+
+You can find the demos as videos here - 
+
+Pods Demo 1 https://www.youtube.com/watch?v=h8q7s1CKMQ4
+
+And you can also find the terminal recordings of the demos using
+[asciinema](https://asciinema.org) in this directory. Use this to play it
+
+```bash
+$ asciinema play <cast-file>
+$ asciinema play pods-demo-1.cast
+$ asciinema play pods-demo-2.cast
+```
