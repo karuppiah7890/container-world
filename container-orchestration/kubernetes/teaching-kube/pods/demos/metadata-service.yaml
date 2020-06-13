@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: metadata-1
+  labels:
+    app: metadata
+spec:
+  containers:
+  - name: metadata
+    image: sunitparekh/metadata:v1.0
