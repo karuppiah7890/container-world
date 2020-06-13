@@ -16,3 +16,11 @@ spec:
       containers:
       - name: dobby
         image: thecasualcoder/dobby
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4444
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 4444
