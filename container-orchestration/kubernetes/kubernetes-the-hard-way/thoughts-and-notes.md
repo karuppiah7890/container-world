@@ -3132,3 +3132,76 @@ how it looks like. But `nslookup` is not like that, it can just take `kubernetes
 and still work! :)
 
 This behavior needs explanation too!! :)
+
+---
+
+Kubernetes DNS
+
+https://medium.com/kubernetes-tutorials/kubernetes-dns-for-services-and-pods-664804211501
+
+---
+
+I was able to connect to the pods and services from my Mac, by using the
+following commands
+
+
+```bash
+$ sudo route -n add 10.32.0.0/24 192.168.64.32 
+$ {
+  sudo route -n add 10.200.0.0/24 192.168.64.32
+  sudo route -n add 10.200.1.0/24 192.168.64.33
+  sudo route -n add 10.200.2.0/24 192.168.64.34
+}
+```
+
+Those are route commands to add IP routes. For the pod and service IPs, I added
+some routes. For service IP, I just had to route to one of the worker nodes.
+For the pod IP, I had to route to the correct worker node containing the pod IP.
+It's weird I had to do that since each of the worker nodes know how to route
+network to any of the pod IPs in any of the worker nodes, based on the route
+tables that they have in each of them. So, it would have been enough to route
+all the traffic to just one of the worker nodes, similar to routing service IP.
+But that didn't work, so, I had to split up the IPs and route to particular
+nodes and it worked. I was just experimenting to see if it's possible.
+
+This happened because many people kept asking how to connect to the pod or service
+IP from the Mac. I kept saying the Mac is not part of the network and doesn't
+know how to route the traffic to the pod. Until I realized I could bring in the
+concept of routes similar to what I had done in the worker nodes and did it
+for my Mac. It's also fascinating to see it, because, if you notice, Mac can
+access the worker node IP and worker node ports if the ports are open, because of say, some
+node port service. Worker nodes can access pods and services based on the
+ip routes and ip-tables (as that's the kube proxy mode). But Mac cannot access
+the pod or services. That's weird. So, I filled up the gap in network knowledge
+for Mac and it understood that the worker nodes can help to connect the pod IP
+and service IP.
+
+I realized that it's possible for two entities in a big network to be able to
+access each other, when there are multiple entities in between connecting them.
+Seems intuitive, but lot of things need to be right for this to happen. Firewall
+rules (security stuff), routing table etc. And then it's possible ! :)
+
+To remove the routes, I could use these
+
+```bash
+$ sudo route -n delete 10.32.0.0/24 192.168.64.32 
+$ {
+  sudo route -n delete 10.200.0.0/24 192.168.64.32
+  sudo route -n delete 10.200.1.0/24 192.168.64.33
+  sudo route -n delete 10.200.2.0/24 192.168.64.34
+}
+```
+
+The routes didn't persist after restart I think. I couldn't spend time to research much
+on it.
+
+To check the route table in Mac -
+
+```bash
+$ netstat -rn
+```
+
+It was fun to show this demo to some folks given the number of times I told
+people that they can't access Pod IP or cluster IP from the Mac as they are
+part of cluster, private and isolated. I did the demo when doing a session
+on networking in kubernetes ;)
