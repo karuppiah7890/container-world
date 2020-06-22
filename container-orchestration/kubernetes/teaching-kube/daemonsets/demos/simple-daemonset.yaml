@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: dobby
+spec:
+  selector:
+    matchLabels:
+      app: dobby
+  template:
+    metadata:
+      name: dobby
+      labels:
+        app: dobby
+    spec:
+      containers:
+      - name: dobby
+        image: thecasualcoder/dobby
+        ports:
+        - hostPort: 8080
+          containerPort: 4444
