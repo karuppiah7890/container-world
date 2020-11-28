@@ -3,7 +3,7 @@
 Kubernetes is a platform. Platform to run things, run your applications.
 
 How does one run things in Kubernetes? Kubernetes only has support for
-containers. For example Docker containers. So, how does on run containers in
+containers. For example Docker containers. So, how does one run containers in
 Kubernetes?
 
 You need to create a Kubernetes object to tell Kubernetes to run containers.
