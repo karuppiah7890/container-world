@@ -103,5 +103,8 @@ Address: 172.17.0.5
 
 - Delete pods and see how it comes back and hit the pod again to see what the
   content inside the pod is.
+
   - Check the volume attached to it.
 
+- Notice the label on the pods that have the pod name in it
+  `statefulset.kubernetes.io/pod-name: web-0`
