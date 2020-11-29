@@ -130,4 +130,4 @@ https://duckduckgo.com/?t=ffab&q=kubernetes+api+server+curl&ia=web
 
 https://blog.ronnyvdb.net/2019/08/07/howto-curl-the-kubernetes-api-server/
 
-
+https://kubernetes.io/docs/tutorials/stateful-application/cassandra/
