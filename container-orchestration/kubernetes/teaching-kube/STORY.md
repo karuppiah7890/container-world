@@ -106,4 +106,28 @@ https://www.fluentd.org/guides/recipes/elasticsearch-and-s3
 
 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
 
+https://duckduckgo.com/?t=ffab&q=horizontal+auto+pod+scaler&ia=web
+
+https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+
+https://duckduckgo.com/?t=ffab&q=HorizontalPodAutoscaler+node+metric&ia=web
+
+https://stackoverflow.com/questions/54375276/scale-deployment-based-on-custom-metric
+
+https://stackoverflow.com/questions/34601650/how-do-i-run-curl-command-from-within-a-kubernetes-pod
+
+https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/
+
+https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#support-for-custom-metrics
+
+---
+
+https://kubernetes.io/docs/concepts/storage/persistent-volumes/#class-1
+
+---
+
+https://duckduckgo.com/?t=ffab&q=kubernetes+api+server+curl&ia=web
+
+https://blog.ronnyvdb.net/2019/08/07/howto-curl-the-kubernetes-api-server/
+
 

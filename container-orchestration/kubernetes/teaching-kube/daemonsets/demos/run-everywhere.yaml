@@ -19,9 +19,9 @@ spec:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
-              matchLabels:
-                app: nginx
-                objectType: deployment
+                matchLabels:
+                  app: nginx
+                  objectType: deployment
               topologyKey: kubernetes.io/hostname
       containers:
         - name: nginx
