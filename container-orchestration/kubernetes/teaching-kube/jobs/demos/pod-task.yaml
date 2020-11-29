@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-task
+  labels:
+    app: simple-task
+spec:
+  containers:
+    - name: echo-task
+      image: busybox
+      command:
+        - "echo"
+      args:
+        - "ok"
