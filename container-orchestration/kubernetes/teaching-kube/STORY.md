@@ -77,3 +77,17 @@ DaemonSets
   deployment / replicaset has to have a dynamic replica count. There's something
   called Horizontal Pod Autoscaler. This is a lot of work. Instead, Kubernetes
   provides a simple solution to this. It's called a DaemonSet. :)
+
+---
+
+DaemonSet
+
+https://kubernetes.io/docs/reference/scheduling/
+
+https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/
+
+https://docs.fluentd.org
+
+https://docs.fluentd.org/installation
+
+https://docs.fluentd.org/container-deployment
