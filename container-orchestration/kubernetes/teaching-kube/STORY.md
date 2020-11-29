@@ -82,6 +82,8 @@ DaemonSets
 
 DaemonSet
 
+https://duckduckgo.com/?t=ffab&q=kubernetes+scheduling&ia=web
+
 https://kubernetes.io/docs/reference/scheduling/
 
 https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/
@@ -91,3 +93,17 @@ https://docs.fluentd.org
 https://docs.fluentd.org/installation
 
 https://docs.fluentd.org/container-deployment
+
+https://docs.fluentd.org/container-deployment/kubernetes
+
+https://carbon.now.sh/?bg=rgba%2874%2C144%2C226%2C1%29&t=material&wt=none&l=auto&ds=true&dsyoff=20px&dsblur=68px&wc=true&wa=false&pv=56px&ph=56px&ln=false&fl=1&fm=Fira+Code&fs=18px&lh=152%25&si=false&es=4x&wm=false&code=apiVersion%253A%2520v1%250Akind%253A%2520Pod%250Ametadata%253A%250A%2520%2520name%253A%2520simple-task%250A%2520%2520labels%253A%250A%2520%2520%2520%2520app%253A%2520simple-task%250Aspec%253A%250A%2520%2520containers%253A%250A%2520%2520%2520%2520-%2520name%253A%2520echo-task%250A%2520%2520%2520%2520%2520%2520image%253A%2520busybox%250A%2520%2520%2520%2520%2520%2520command%253A%250A%2520%2520%2520%2520%2520%2520%2520%2520-%2520%2522echo%2522%250A%2520%2520%2520%2520%2520%2520args%253A%250A%2520%2520%2520%2520%2520%2520%2520%2520-%2520%2522ok%2522%250A
+
+https://duckduckgo.com/?t=ffab&q=fluentd+elasticsearch&ia=web
+
+https://docs.fluentd.org/output/elasticsearch
+
+https://www.fluentd.org/guides/recipes/elasticsearch-and-s3
+
+https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+
+
