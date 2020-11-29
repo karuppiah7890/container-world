@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx
+  name: nginx-nginx-everywhere
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app: nginx-nginx-everywhere
       objectType: deployment
   template:
     metadata:
       name: nginx
       labels:
-        app: nginx
+        app: nginx-nginx-everywhere
         objectType: deployment
     spec:
       affinity:
@@ -20,7 +20,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app: nginx
+                  app: nginx-nginx-everywhere
                   objectType: deployment
               topologyKey: kubernetes.io/hostname
       containers:
