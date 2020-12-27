@@ -747,4 +747,89 @@ of Publicly-Trusted Certificates, v.1.1.6, from the CA/Browser Forum (https://ca
 specifically, section 10.2.3 ("Information Requirements").
 ```
 
+```bash
+$ kube-apiserver  --help | grep tls
+                                                     Sysctls=true|false (BETA - default=true)
+      --cert-dir string                        The directory where the TLS certs are located. If --tls-cert-file and --tls-private-key-file are provided, this flag will be ignored. (default "/var/run/kubernetes")
+      --tls-cert-file string                   File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). If HTTPS serving is enabled, and --tls-cert-file and --tls-private-key-file are not provided, a self-signed certificate and key are generated for the public address and saved to the directory specified by --cert-dir.
+      --tls-cipher-suites strings              Comma-separated list of cipher suites for the server. If omitted, the default Go cipher suites will be used.
+      --tls-min-version string                 Minimum TLS version supported. Possible values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
+      --tls-private-key-file string            File containing the default x509 private key matching --tls-cert-file.
+      --tls-sni-cert-key namedCertKey          A pair of x509 certificate and private key file paths, optionally suffixed with a list of domain patterns which are fully qualified domain names, possibly with prefixed wildcard segments. The domain patterns also allow IP addresses, but IPs should only be used if the apiserver has visibility to the IP address requested by a client. If no domain patterns are provided, the names of the certificate are extracted. Non-wildcard matches trump over wildcard matches, explicit domain patterns trump over extracted names. For multiple key/certificate pairs, use the --tls-sni-cert-key multiple times. Examples: "example.crt,example.key" or "foo.crt,foo.key:*.foo.com,foo.com". (default [])
+      --service-account-key-file stringArray              File containing PEM-encoded x509 RSA or ECDSA private or public keys, used to verify ServiceAccount tokens. The specified file can contain multiple keys, and the flag can be specified multiple times with different files. If unspecified, --tls-private-key-file is used. Must be specified when --service-account-signing-key is provided
+```
+
+```bash
+API_SERVER_NODE_IP=192.168.64.39
+
+KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
+
+# as the default service cluster ip range is 10.0.0.0/24
+KUBERNETES_SERVICE_IP=10.0.0.1
+
+cat > kubernetes-api-server-csr.json <<EOF
+{
+    "CN": "kubernetes-api-server",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Francisco",
+            "O": "Kubernetes",
+            "OU": "Kubernetes API Server",
+            "ST": "California"
+        }
+    ]
+}
+EOF
+
+$ cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -hostname=${KUBERNETES_SERVICE_IP},${API_SERVER_NODE_IP},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -profile=kubernetes \
+  kubernetes-api-server-csr.json | cfssljson -bare kubernetes
+
+2020/12/27 16:33:07 [INFO] generate received request
+2020/12/27 16:33:07 [INFO] received CSR
+2020/12/27 16:33:07 [INFO] generating key: rsa-2048
+2020/12/27 16:33:08 [INFO] encoded CSR
+2020/12/27 16:33:08 [INFO] signed certificate with serial number 255800072173797018958014062799521182490893253591
+```
+
+
+```bash
+$ kube-apiserver --etcd-servers localhost:2379 --feature-gates "ServiceAccountIssuerDiscovery=false" --tls-cert-file kubernetes.pem --tls-private-key-file kubernetes-key.pem --service-account-issuer kubernetes.default.svc
+W1227 16:34:43.343937    2620 services.go:37] No CIDR for service cluster IPs specified. Default value which was 10.0.0.0/24 is deprecated and will be removed in future releases. Please specify it using --service-cluster-ip-range on kube-apiserver.
+I1227 16:34:43.344853    2620 server.go:632] external host was not specified, using 192.168.64.39
+W1227 16:34:43.345592    2620 authentication.go:519] AnonymousAuth is not allowed with the AlwaysAllow authorizer. Resetting AnonymousAuth to false. You should use a different authorizer
+Error: --service-account-signing-key-file, --service-account-issuer, and --api-audiences should be specified together
+```
+
+```bash
+$ kube-apiserver --etcd-servers localhost:2379 --feature-gates "ServiceAccountIssuerDiscovery=false" --tls-cert-file kubernetes.pem --tls-private-key-file kubernetes-key.pem --service-account-issuer kubernetes.default.svc --api-audiences kubernetes.default.svc --service-account-signing-key-file service-account-key.pem
+W1227 16:36:54.940892    2635 services.go:37] No CIDR for service cluster IPs specified. Default value which was 10.0.0.0/24 is deprecated and will be removed in future releases. Please specify it using --service-cluster-ip-range on kube-apiserver.
+I1227 16:36:54.941934    2635 server.go:632] external host was not specified, using 192.168.64.39
+W1227 16:36:54.943176    2635 authentication.go:519] AnonymousAuth is not allowed with the AlwaysAllow authorizer. Resetting AnonymousAuth to false. You should use a different authorizer
+Error: service-account-key-file is a required flag
+```
+
+```bash
+$ kube-apiserver --etcd-servers localhost:2379 --feature-gates "ServiceAccountIssuerDiscovery=false" --tls-cert-file kubernetes.pem --tls-private-key-file kubernetes-key.pem --service-account-issuer kubernetes.default.svc --api-audiences kubernetes.default.svc --service-account-signing-key-file service-account-key.pem --service-account-key-file service-account.pem
+W1227 16:38:27.853585    2754 services.go:37] No CIDR for service cluster IPs specified. Default value which was 10.0.0.0/24 is deprecated and will be removed in future releases. Please specify it using --service-cluster-ip-range on kube-apiserver.
+I1227 16:38:27.854369    2754 server.go:632] external host was not specified, using 192.168.64.39
+W1227 16:38:27.855053    2754 authentication.go:519] AnonymousAuth is not allowed with the AlwaysAllow authorizer. Resetting AnonymousAuth to false. You should use a different authorizer
+I1227 16:38:27.858158    2754 server.go:182] Version: v1.20.1
+I1227 16:38:28.529473    2754 plugins.go:158] Loaded 11 mutating admission controller(s) successfully in the following order: NamespaceLifecycle,LimitRanger,ServiceAccount,TaintNodesByCondition,Priority,DefaultTolerationSeconds,DefaultStorageClass,StorageObjectInUseProtection,RuntimeClass,DefaultIngressClass,MutatingAdmissionWebhook.
+I1227 16:38:28.530351    2754 plugins.go:161] Loaded 10 validating admission controller(s) successfully in the following order: LimitRanger,ServiceAccount,Priority,PersistentVolumeClaimResize,RuntimeClass,CertificateApproval,CertificateSigning,CertificateSubjectRestriction,ValidatingAdmissionWebhook,ResourceQuota.
+I1227 16:38:29.539318    2754 client.go:360] parsed scheme: "endpoint"
+I1227 16:38:29.539481    2754 endpoint.go:68] ccResolverWrapper: sending new addresses to cc: [{localhost:2379  <nil> 0 <nil>}]
+```
+
+Awesome! Things seem to work now! :) I did have to run the etcd server too. Hmm.
+
 
