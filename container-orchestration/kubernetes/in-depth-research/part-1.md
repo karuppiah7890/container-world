@@ -108,7 +108,7 @@ $ multipass exec my-own-k8s-cluster bash
 To run a command as administrator (user "root"), use "sudo <command>".
 See "man sudo_root" for details.
 
-ubuntu@my-own-k8s-cluster:~$
+$
 ```
 
 Now I'm getting the binaries
@@ -801,7 +801,6 @@ $ cfssl gencert \
 2020/12/27 16:33:08 [INFO] signed certificate with serial number 255800072173797018958014062799521182490893253591
 ```
 
-
 ```bash
 $ kube-apiserver --etcd-servers localhost:2379 --feature-gates "ServiceAccountIssuerDiscovery=false" --tls-cert-file kubernetes.pem --tls-private-key-file kubernetes-key.pem --service-account-issuer kubernetes.default.svc
 W1227 16:34:43.343937    2620 services.go:37] No CIDR for service cluster IPs specified. Default value which was 10.0.0.0/24 is deprecated and will be removed in future releases. Please specify it using --service-cluster-ip-range on kube-apiserver.
@@ -832,4 +831,276 @@ I1227 16:38:29.539481    2754 endpoint.go:68] ccResolverWrapper: sending new add
 
 Awesome! Things seem to work now! :) I did have to run the etcd server too. Hmm.
 
+Actually, it didn't work. I had to properly specify the scheme for the etcd
+server
 
+```bash
+$ kube-apiserver --etcd-servers http://localhost:2379 --feature-gates "ServiceAccountIssuerDiscovery=false" --tls-cert-file kubernetes.pem --tls-private-key-file kubernetes-key.pem --service-account-issuer kubernetes.default.svc --api-audiences kubernetes.default.svc --service-account-signing-key-file service-account-key.pem --service-account-key-file service-account.pem
+...
+...
+...
+```
+
+```bash
+$ $ curl https://localhost:6443
+curl: (60) SSL certificate problem: unable to get local issuer certificate
+More details here: https://curl.haxx.se/docs/sslcerts.html
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the web page mentioned above.
+
+$ curl -k https://localhost:6443
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {
+
+  },
+  "status": "Failure",
+  "message": "Unauthorized",
+  "reason": "Unauthorized",
+  "code": 401
+}
+```
+
+I'm going to try configuring kubectl
+
+https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/04-certificate-authority.md#the-admin-client-certificate
+
+```bash
+$ cat > normal-user-csr.json <<EOF
+{
+    "CN": "normal-user",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Francisco",
+            "O": "Kubernetes",
+            "OU": "Kubernetes Client",
+            "ST": "California"
+        }
+    ]
+}
+EOF
+
+$ cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  normal-user-csr.json | cfssljson -bare normal-user
+```
+
+This is just for the normal user. Next let's create a kubectl config for this.
+
+https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/docs/10-configuring-kubectl.md
+
+```bash
+$ export API_SERVER_NODE_IP=192.168.64.39
+
+$ kubectl config set-cluster my-own-k8s-cluster \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://${API_SERVER_NODE_IP}:6443
+
+$ kubectl config set-credentials normal-user \
+    --client-certificate=normal-user.pem \
+    --client-key=normal-user-key.pem
+
+$ kubectl config set-context normal-user \
+    --cluster=my-own-k8s-cluster \
+    --user=normal-user
+```
+
+```bash
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"20", GitVersion:"v1.20.1", GitCommit:"c4d752765b3bbac2237bf87cf0b1c2e307844666", GitTreeState:"clean", BuildDate:"2020-12-18T12:09:25Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+error: You must be logged in to the server (the server has asked for the client to provide credentials)
+```
+
+```bash
+$ cat > admin-user-csr.json <<EOF
+{
+    "CN": "admin-user",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Francisco",
+            "O": "system:masters",
+            "OU": "Kubernetes Client",
+            "ST": "California"
+        }
+    ]
+}
+EOF
+
+$ cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  admin-user-csr.json | cfssljson -bare admin-user
+```
+
+```bash
+$ kubectl config set-credentials admin-user \
+    --client-certificate=admin-user.pem \
+    --client-key=admin-user-key.pem
+
+$ kubectl config set-context admin-user \
+    --cluster=my-own-k8s-cluster \
+    --user=admin-user
+```
+
+```bash
+$ kubectl config use-context admin-user
+
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"20", GitVersion:"v1.20.1", GitCommit:"c4d752765b3bbac2237bf87cf0b1c2e307844666", GitTreeState:"clean", BuildDate:"2020-12-18T12:09:25Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+error: You must be logged in to the server (the server has asked for the client to provide credentials)
+```
+
+Hmm. It still doesn't work.
+
+https://kubernetes.io/docs/concepts/cluster-administration/certificates/
+
+https://kubernetes.io/docs/setup/best-practices/certificates/
+
+https://kubernetes.io/docs/setup/best-practices/certificates/#configure-certificates-for-user-accounts
+
+Apparently, the Common Name (CN) to use for admins is a bit different, like I
+guessed. But why would normal-user not work. Hmm. kubectl keeps saying that the
+client is NOT even providing credentials. Hmm
+
+---
+
+https://kubernetes.io/search/?q=authentication
+
+https://kubernetes.io/search/?q=admin
+
+https://kubernetes.io/search/?q=admin%20user
+
+---
+
+https://duckduckgo.com/?t=ffab&q=You+must+be+logged+in+to+the+server+(the+server+has+asked+for+the+client+to+provide+credentials)&ia=web
+
+Okay, I found out the reason for the whole issue
+
+```bash
+$ kube-apiserver --help | grep cert
+      --etcd-certfile string                     SSL certification file used to secure etcd communication.
+      --cert-dir string                        The directory where the TLS certs are located. If --tls-cert-file and --tls-private-key-file are provided, this flag will be ignored. (default "/var/run/kubernetes")
+      --tls-cert-file string                   File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). If HTTPS serving is enabled, and --tls-cert-file and --tls-private-key-file are not provided, a self-signed certificate and key are generated for the public address and saved to the directory specified by --cert-dir.
+      --tls-private-key-file string            File containing the default x509 private key matching --tls-cert-file.
+      --tls-sni-cert-key namedCertKey          A pair of x509 certificate and private key file paths, optionally suffixed with a list of domain patterns which are fully qualified domain names, possibly with prefixed wildcard segments. The domain patterns also allow IP addresses, but IPs should only be used if the apiserver has visibility to the IP address requested by a client. If no domain patterns are provided, the names of the certificate are extracted. Non-wildcard matches trump over wildcard matches, explicit domain patterns trump over extracted names. For multiple key/certificate pairs, use the --tls-sni-cert-key multiple times. Examples: "example.crt,example.key" or "foo.crt,foo.key:*.foo.com,foo.com". (default [])
+      --client-ca-file string                             If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.
+      --oidc-ca-file string                               If set, the OpenID server's certificate will be verified by one of the authorities in the oidc-ca-file, otherwise the host's root CA set will be used.
+      --requestheader-allowed-names strings               List of client certificate common names to allow to provide usernames in headers specified by --requestheader-username-headers. If empty, any client certificate validated by the authorities in --requestheader-client-ca-file is allowed.
+      --requestheader-client-ca-file string               Root certificate bundle to use to verify client certificates on incoming requests before trusting usernames in headers specified by --requestheader-username-headers. WARNING: generally do not depend on authorization being already done for incoming requests.
+      --kubelet-certificate-authority string        Path to a cert file for the certificate authority.
+      --kubelet-client-certificate string           Path to a client cert file for TLS.
+      --proxy-client-cert-file string               Client certificate used to prove the identity of the aggregator or kube-apiserver when it must call out during a request. This includes proxying requests to a user api-server and calling out to webhook admission plugins. It is expected that this cert includes a signature from the CA in the --requestheader-client-ca-file flag. That CA is published in the 'extension-apiserver-authentication' configmap in the kube-system namespace. Components receiving calls from kube-aggregator should use that CA to perform their half of the mutual TLS verification.
+      --proxy-client-key-file string                Private key for the client certificate used to prove the identity of the aggregator or kube-apiserver when it must call out during a request. This includes proxying requests to a user api-server and calling out to webhook admission plugins.
+```
+
+So, I was checking if I didn't configure api server properly and I was right.
+I was sneaking into kubernetes hard way too after checking the help of the
+api server binary. I noticed that I had never provided a path to the certificate
+authority certificate. This is key to checking / verifying / validating the
+certificates shown by the clients (users). api server has to check if the CA
+has signed them, if a trusted CA has signed them.
+
+```bash
+--client-ca-file string                             If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.
+```
+
+So, we need to set `--cliet-ca-file`
+
+Now it all just works fine!! :)
+
+```bash
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"20", GitVersion:"v1.20.1", GitCommit:"c4d752765b3bbac2237bf87cf0b1c2e307844666", GitTreeState:"clean", BuildDate:"2020-12-18T12:09:25Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"20", GitVersion:"v1.20.1", GitCommit:"c4d752765b3bbac2237bf87cf0b1c2e307844666", GitTreeState:"clean", BuildDate:"2020-12-18T12:00:47Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+
+$ kubectl config use-context normal-user
+
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"20", GitVersion:"v1.20.1", GitCommit:"c4d752765b3bbac2237bf87cf0b1c2e307844666", GitTreeState:"clean", BuildDate:"2020-12-18T12:09:25Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"20", GitVersion:"v1.20.1", GitCommit:"c4d752765b3bbac2237bf87cf0b1c2e307844666", GitTreeState:"clean", BuildDate:"2020-12-18T12:00:47Z", GoVersion:"go1.15.5", Compiler:"gc", Platform:"linux/amd64"}
+```
+
+It works for both admin user and normal user. It doesn't matter what CN name I
+had put. I have to check what level of access I have though. Hm.
+
+Seems like I have a lot of access. Hmm. Even with the normal user.
+
+```bash
+$ kubectl auth can-i create pod
+yes
+$ kubectl auth can-i create role
+yes
+$ kubectl auth can-i create clusterrole
+Warning: resource 'clusterroles' is not namespace scoped in group 'rbac.authorization.k8s.io'
+yes
+
+$ kubectl auth can-i delete pod
+yes
+$ kubectl auth can-i delete role
+yes
+$ kubectl auth can-i delete serviceaccount
+yes
+```
+
+Anyways :) Let's play with this a bit now ;) ;)
+
+```bash
+$ kubectl get componentstatus
+Warning: v1 ComponentStatus is deprecated in v1.19+
+NAME                 STATUS      MESSAGE                                                                                       ERROR
+scheduler            Unhealthy   Get "http://127.0.0.1:10251/healthz": dial tcp 127.0.0.1:10251: connect: connection refused
+controller-manager   Unhealthy   Get "http://127.0.0.1:10252/healthz": dial tcp 127.0.0.1:10252: connect: connection refused
+etcd-0               Healthy     {"health":"true"}
+```
+
+https://duckduckgo.com/?t=ffab&q=v1+ComponentStatus+is+deprecated+in+v1.19%2B&ia=web
+
+Not sure why it says that the ComponentStatus is deprecated. Hmm. Anyways, our
+scheduler and controller manager are unhealthy. Actually, dead in this case :P
+
+As we never ran these components. Now, let's try to run a pod ;)
+
+```bash
+$ cat > simple-pod-task.yaml <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-task
+  labels:
+    app: simple-task
+spec:
+  containers:
+    - name: echo-task
+      image: busybox
+      command:
+        - "echo"
+      args:
+        - "network-job"
+  restartPolicy: Never
+
+EOF
+
+$ $ kubectl apply -f simple-pod-task.yaml
+Error from server (Forbidden): error when creating "simple-pod-task.yaml": pods "simple-task" is forbidden: error looking up service account default/default: serviceaccount "default" not found
+```
+
+It tried to look for a default service account, hmm.
