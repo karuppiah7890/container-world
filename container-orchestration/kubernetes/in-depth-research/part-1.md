@@ -1290,4 +1290,38 @@ coordination.k8s.io/v1beta1
 ...
 ```
 
+I think this is good enough. I still don't know answers to some questions. For
+example, what level of access do I have? I noticed I have lot of accesses using
+the `kubectl auth can-i` command.
 
+I also noticed that by default, users presenting client certificate get admin
+access. Not sure how that happens. But I read this on the docs. Anyways.
+
+Let's get to getting a kubernetes scheduler and see how it works.
+
+So, the gist is
+
+```bash
+$ # running etcd
+$ etcd
+...
+...
+```
+
+```bash
+$ # running kubernetes-api server
+$ kube-apiserver --etcd-servers http://localhost:2379 --feature-gates "ServiceAccountIssuerDiscovery=false" --tls-cert-file kubernetes.pem --tls-private-key-file kubernetes-key.pem --service-account-issuer kubernetes.default.svc --api-audiences kubernetes.default.svc --service-account-signing-key-file service-account-key.pem --service-account-key-file service-account.pem --client-ca-file ca.pem 2>&1 | tee -a api-server.log
+```
+
+```bash
+$ # running kubectl after configuring kubectl with client certificate and 
+$ # cluster info and kube context
+$ kubectl version
+```
+
+Kube context is a combination of user and cluster information, more like
+references to them.
+
+Changing kube context can help with changing just username (identity) without
+changing cluster, or it can help with changing cluster, without changing
+username (identity) or it can help with changing both too :)
