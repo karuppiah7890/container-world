@@ -1074,6 +1074,8 @@ etcd-0               Healthy     {"health":"true"}
 
 https://duckduckgo.com/?t=ffab&q=v1+ComponentStatus+is+deprecated+in+v1.19%2B&ia=web
 
+https://duckduckgo.com/?t=ffab&q=componentstatus+kubernetes&ia=web
+
 Not sure why it says that the ComponentStatus is deprecated. Hmm. Anyways, our
 scheduler and controller manager are unhealthy. Actually, dead in this case :P
 
@@ -1104,3 +1106,188 @@ Error from server (Forbidden): error when creating "simple-pod-task.yaml": pods 
 ```
 
 It tried to look for a default service account, hmm.
+
+So, I guess the default service account is not present because it is actually
+created by default for new namespaces by one of the controllers managed by the
+controller manager. I think it's the service account controller.
+
+Hence this whole issue. Now, do I need to run the controller manager? Maybe not.
+I was checking if a pod can be created without any service account. Apparently
+not, based on my research. 
+
+So, now, I just tried to create a service account by myself as I remember doing
+it before
+
+```bash
+$ kubectl create serviceaccount default
+```
+
+```bash
+$ kubectl apply -f simple-pod-task.yaml
+Error from server (ServerTimeout): error when creating "simple-pod-task.yaml": No API token found for service account "default", retry after the token is automatically created and added to the service account
+```
+
+Looks like the service account must have a token, which, again is created by one
+of the controllers. I think it's the token controller.
+
+Anyways, this is all needed because the Pod is probably trying to mount the
+token from the service account, but the pod doesn't even need it in this case.
+So, I can switch off auto mounting of token. I'm doing this in the pod for now.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-task
+  labels:
+    app: simple-task
+spec:
+  containers:
+    - name: echo-task
+      image: busybox
+      command:
+        - "echo"
+      args:
+        - "network-job"
+  restartPolicy: Never
+  automountServiceAccountToken: false
+```
+
+```bash
+$ kubectl apply -f simple-pod-task.yaml
+pod/simple-task created
+
+$ kubectl get pods
+NAME          READY   STATUS    RESTARTS   AGE
+simple-task   0/1     Pending   0          15s
+```
+
+So, the pod is created. It's just that it will be in pending state. This is
+because there is no scheduler to help schedule the pod to an appropriate node.
+Also, in our case, there is NO worker node running to run a Pod with containers.
+So, now, I think it's a good start. We have the API server up and running with
+etcd and are able to communicate with it and even create resources - but merely
+just configurations. No application is running on top of kubernetes. Let's check
+what's out there.
+
+```bash
+$ kubectl get pods -A
+NAMESPACE   NAME          READY   STATUS    RESTARTS   AGE
+default     simple-task   0/1     Pending   0          111s
+
+$ kubectl get all -A
+NAMESPACE   NAME              READY   STATUS    RESTARTS   AGE
+default     pod/simple-task   0/1     Pending   0          115s
+
+NAMESPACE   NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+default     service/kubernetes   ClusterIP   10.0.0.1     <none>        443/TCP   22h
+```
+
+```bash
+$ kubectl get namespaces
+NAME              STATUS   AGE
+default           Active   22h
+kube-node-lease   Active   22h
+kube-public       Active   22h
+kube-system       Active   22h
+
+$ kubectl get role -A
+No resources found
+
+$ kubectl get clusterrole -A
+No resources found
+
+$ kubectl get clusterrolebinding -A
+No resources found
+
+$ kubectl get rolebinding -A
+No resources found
+
+$ kubectl get daemonset
+No resources found in default namespace.
+
+$ kubectl get stat
+error: the server doesn't have a resource type "stat"
+```
+
+```bash
+$ kubectl get statefulset
+No resources found in default namespace.
+
+$ kubectl get crd
+No resources found
+```
+
+```bash
+$ kubectl get nodes
+No resources found
+```
+
+```bash
+$ kubectl cluster-info
+Kubernetes control plane is running at https://192.168.64.39:6443
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+```
+
+```bash
+$ kubectl top pod
+error: Metrics API not available
+
+$ kubectl top node
+error: Metrics API not available
+```
+
+```bash
+$ kubectl api-resources
+NAME                              SHORTNAMES   APIVERSION                             NAMESPACED   KIND
+bindings                                       v1                                     true         Binding
+componentstatuses                 cs           v1                                     false        ComponentStatus
+configmaps                        cm           v1                                     true         ConfigMap
+endpoints                         ep           v1                                     true         Endpoints
+events                            ev           v1                                     true         Event
+limitranges                       limits       v1                                     true         LimitRange
+namespaces                        ns           v1                                     false        Namespace
+nodes                             no           v1                                     false        Node
+persistentvolumeclaims            pvc          v1                                     true         PersistentVolumeClaim
+persistentvolumes                 pv           v1                                     false        PersistentVolume
+pods                              po           v1                                     true         Pod
+podtemplates                                   v1                                     true         PodTemplate
+replicationcontrollers            rc           v1                                     true         ReplicationController
+resourcequotas                    quota        v1                                     true         ResourceQuota
+secrets                                        v1                                     true         Secret
+serviceaccounts                   sa           v1                                     true         ServiceAccount
+services                          svc          v1                                     true         Service
+mutatingwebhookconfigurations                  admissionregistration.k8s.io/v1        false        MutatingWebhookConfiguration
+validatingwebhookconfigurations                admissionregistration.k8s.io/v1        false        ValidatingWebhookConfiguration
+customresourcedefinitions         crd,crds     apiextensions.k8s.io/v1                false    
+....
+```
+
+```bash
+$ kubectl api-versions
+admissionregistration.k8s.io/v1
+admissionregistration.k8s.io/v1beta1
+apiextensions.k8s.io/v1
+apiextensions.k8s.io/v1beta1
+apiregistration.k8s.io/v1
+apiregistration.k8s.io/v1beta1
+apps/v1
+authentication.k8s.io/v1
+authentication.k8s.io/v1beta1
+authorization.k8s.io/v1
+authorization.k8s.io/v1beta1
+autoscaling/v1
+autoscaling/v2beta1
+autoscaling/v2beta2
+batch/v1
+batch/v1beta1
+certificates.k8s.io/v1
+certificates.k8s.io/v1beta1
+coordination.k8s.io/v1
+coordination.k8s.io/v1beta1
+...
+...
+```
+
+
