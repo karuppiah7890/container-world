@@ -1,4 +1,4 @@
-# Part 1
+# Part 1 - API Server and Client
 
 To start off, I want to manually do everything that's needed to setup a cluster.
 As manually as possible. This will help me understand some of the in-depth

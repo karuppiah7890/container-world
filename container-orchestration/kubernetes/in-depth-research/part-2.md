@@ -1,4 +1,4 @@
-# Part 2
+# Part 2 - Scheduler
 
 In this part, let's run the kubernetes scheduler so that the scheduling can
 happen and pods can be scheduled and run a particular worker node. Let's not
