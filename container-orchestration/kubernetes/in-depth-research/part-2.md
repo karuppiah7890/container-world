@@ -321,3 +321,71 @@ $ kubectl config set-context kube-scheduler \
 $ kubectl config use-context normal-kube-scheduler \
     --kubeconfig=kube-scheduler.kubeconfig
 ```
+
+```bash
+$ kube-scheduler --authentication-kubeconfig kube-scheduler.kubeconfig
+I1230 09:06:26.619588    1334 serving.go:331] Generated self-signed cert in-memory
+W1230 09:06:28.155815    1334 authorization.go:173] No authorization-kubeconfig provided, so SubjectAccessReview of authorization tokens won't work.
+W1230 09:06:28.155835    1334 options.go:332] Neither --kubeconfig nor --master was specified. Using default API client. This might not work.
+invalid configuration: no configuration has been provided, try setting KUBERNETES_MASTER environment variable
+```
+
+I think that the authentication kubeconfig is probably only to connect to the
+cluster and get the client-ca so that the scheduler can authenticate clients
+based on client CA and it will get the CA data from the cluster for which it
+needs to connect to the cluster. Hmm. Anyways, let's get rid of that and just
+use kubeconfig for now, even though it's deprecated. I was wondering what's the
+alternative for the kubeconfig then. I mean, how does the kube scheduler then
+talk to the api server? It needs
+
+- Hostname
+- Port
+- CA certificates to check the HTTPS hostname, in case it is not signed by some
+well known trusted CA that the scheduler OS already recognizes
+- Credentials / Certificates (authn/authz)
+
+I need to understand how the communication between the kube scheduler and api
+server happens
+
+Looks like it works now
+
+```bash
+$ kube-scheduler --kubeconfig kube-scheduler.kubeconfig
+I1230 09:11:03.702156    1339 serving.go:331] Generated self-signed cert in-memory
+W1230 09:11:04.077894    1339 authentication.go:303] No authentication-kubeconfig provided in order to lookup client-ca-file in configmap/extension-apiserver-authentication in kube-system, so client certificate authentication won't work.
+W1230 09:11:04.078113    1339 authentication.go:327] No authentication-kubeconfig provided in order to lookup requestheader-client-ca-file in configmap/extension-apiserver-authentication in kube-system, so request-header client certificate authentication won't work.
+W1230 09:11:04.078555    1339 authorization.go:173] No authorization-kubeconfig provided, so SubjectAccessReview of authorization tokens won't work.
+W1230 09:11:04.183286    1339 authorization.go:47] Authorization is disabled
+W1230 09:11:04.184014    1339 authentication.go:40] Authentication is disabled
+I1230 09:11:04.184384    1339 deprecated_insecure_serving.go:51] Serving healthz insecurely on [::]:10251
+I1230 09:11:04.187334    1339 secure_serving.go:197] Serving securely on [::]:10259
+I1230 09:11:04.187860    1339 tlsconfig.go:240] Starting DynamicServingCertificateController
+I1230 09:11:04.289962    1339 leaderelection.go:243] attempting to acquire leader lease kube-system/kube-scheduler...
+I1230 09:11:04.316245    1339 leaderelection.go:253] successfully acquired lease kube-system/kube-scheduler
+```
+
+It also has some leader election stuff going on, I guess this is when there are
+multiple schedulers? Idk. But why should there be a leader in case of multiple
+schedulers? Hmm. I mean, there's no state stored in the scheduler, it's 
+stateless I think. Then, what's the point of election? Hmm. Maybe multiple
+schedulers shouldn't process and schedule the same pod? Hmm, not sure. In that
+case, how does one scale the scheduler? Idk. Gotta read :)
+
+Now, since this has started, I can now see events in the pod while describing
+the pod
+
+```bash
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  2s    default-scheduler  no nodes available to schedule pods
+  Warning  FailedScheduling  2s    default-scheduler  no nodes available to schedule pods
+```
+
+The scheduler tells that no nodes are available to schedule the pods. Nice! :)
+
+Also, something to note is, we are using a kube config where the user does not
+have any special group (in the certificate org field) and hence has no group.
+
+Okay, now what's left? Let's start creating a worker node? So that our pod can
+run on it :D
