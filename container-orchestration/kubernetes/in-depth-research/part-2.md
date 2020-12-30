@@ -119,3 +119,205 @@ I just noticed in the `--help` that the flags are properly categorized! That's
 great! I was too lazy to look at the whole thing 😅 🙈 Anyways, there are so
 many categories and it also has a category named as "deprecated flags!" that's
 pretty useful! :) :D
+
+```bash
+$ kube-scheduler --master https://localhost:6443
+I1230 08:37:24.605936    1077 serving.go:331] Generated self-signed cert in-memory
+W1230 08:37:25.009897    1077 authentication.go:303] No authentication-kubeconfig provided in order to lookup client-ca-file in configmap/extension-apiserver-authentication in kube-system, so client certificate authentication won't work.
+W1230 08:37:25.010212    1077 authentication.go:327] No authentication-kubeconfig provided in order to lookup requestheader-client-ca-file in configmap/extension-apiserver-authentication in kube-system, so request-header client certificate authentication won't work.
+W1230 08:37:25.010600    1077 authorization.go:173] No authorization-kubeconfig provided, so SubjectAccessReview of authorization tokens won't work.
+W1230 08:37:25.091768    1077 authorization.go:47] Authorization is disabled
+W1230 08:37:25.091971    1077 authentication.go:40] Authentication is disabled
+I1230 08:37:25.092375    1077 deprecated_insecure_serving.go:51] Serving healthz insecurely on [::]:10251
+I1230 08:37:25.094574    1077 secure_serving.go:197] Serving securely on [::]:10259
+I1230 08:37:25.095244    1077 tlsconfig.go:240] Starting DynamicServingCertificateController
+E1230 08:37:25.108803    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Node: failed to list *v1.Node: Get "https://localhost:6443/api/v1/nodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.114284    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Pod: failed to list *v1.Pod: Get "https://localhost:6443/api/v1/pods?fieldSelector=status.phase%21%3DSucceeded%2Cstatus.phase%21%3DFailed&limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.118183    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolumeClaim: failed to list *v1.PersistentVolumeClaim: Get "https://localhost:6443/api/v1/persistentvolumeclaims?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.121597    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StorageClass: failed to list *v1.StorageClass: Get "https://localhost:6443/apis/storage.k8s.io/v1/storageclasses?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.126640    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.CSINode: failed to list *v1.CSINode: Get "https://localhost:6443/apis/storage.k8s.io/v1/csinodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.131111    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicationController: failed to list *v1.ReplicationController: Get "https://localhost:6443/api/v1/replicationcontrollers?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.135222    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StatefulSet: failed to list *v1.StatefulSet: Get "https://localhost:6443/apis/apps/v1/statefulsets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.139974    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolume: failed to list *v1.PersistentVolume: Get "https://localhost:6443/api/v1/persistentvolumes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.144153    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1beta1.PodDisruptionBudget: failed to list *v1beta1.PodDisruptionBudget: Get "https://localhost:6443/apis/policy/v1beta1/poddisruptionbudgets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.148220    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Service: failed to list *v1.Service: Get "https://localhost:6443/api/v1/services?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.151946    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicaSet: failed to list *v1.ReplicaSet: Get "https://localhost:6443/apis/apps/v1/replicasets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.940815    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StorageClass: failed to list *v1.StorageClass: Get "https://localhost:6443/apis/storage.k8s.io/v1/storageclasses?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:25.970125    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1beta1.PodDisruptionBudget: failed to list *v1beta1.PodDisruptionBudget: Get "https://localhost:6443/apis/policy/v1beta1/poddisruptionbudgets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.243434    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicaSet: failed to list *v1.ReplicaSet: Get "https://localhost:6443/apis/apps/v1/replicasets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.347918    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Node: failed to list *v1.Node: Get "https://localhost:6443/api/v1/nodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.351907    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicationController: failed to list *v1.ReplicationController: Get "https://localhost:6443/api/v1/replicationcontrollers?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.356410    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.CSINode: failed to list *v1.CSINode: Get "https://localhost:6443/apis/storage.k8s.io/v1/csinodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.403381    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Pod: failed to list *v1.Pod: Get "https://localhost:6443/api/v1/pods?fieldSelector=status.phase%21%3DSucceeded%2Cstatus.phase%21%3DFailed&limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.487675    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolumeClaim: failed to list *v1.PersistentVolumeClaim: Get "https://localhost:6443/api/v1/persistentvolumeclaims?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.492118    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Service: failed to list *v1.Service: Get "https://localhost:6443/api/v1/services?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.702162    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StatefulSet: failed to list *v1.StatefulSet: Get "https://localhost:6443/apis/apps/v1/statefulsets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:26.733535    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolume: failed to list *v1.PersistentVolume: Get "https://localhost:6443/api/v1/persistentvolumes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:27.695348    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StorageClass: failed to list *v1.StorageClass: Get "https://localhost:6443/apis/storage.k8s.io/v1/storageclasses?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:27.878905    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicaSet: failed to list *v1.ReplicaSet: Get "https://localhost:6443/apis/apps/v1/replicasets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.030297    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicationController: failed to list *v1.ReplicationController: Get "https://localhost:6443/api/v1/replicationcontrollers?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.505897    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Pod: failed to list *v1.Pod: Get "https://localhost:6443/api/v1/pods?fieldSelector=status.phase%21%3DSucceeded%2Cstatus.phase%21%3DFailed&limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.535531    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.CSINode: failed to list *v1.CSINode: Get "https://localhost:6443/apis/storage.k8s.io/v1/csinodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.651284    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Node: failed to list *v1.Node: Get "https://localhost:6443/api/v1/nodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.836342    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1beta1.PodDisruptionBudget: failed to list *v1beta1.PodDisruptionBudget: Get "https://localhost:6443/apis/policy/v1beta1/poddisruptionbudgets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.930991    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Service: failed to list *v1.Service: Get "https://localhost:6443/api/v1/services?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:28.984235    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StatefulSet: failed to list *v1.StatefulSet: Get "https://localhost:6443/apis/apps/v1/statefulsets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:29.490950    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolume: failed to list *v1.PersistentVolume: Get "https://localhost:6443/api/v1/persistentvolumes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:29.687897    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolumeClaim: failed to list *v1.PersistentVolumeClaim: Get "https://localhost:6443/api/v1/persistentvolumeclaims?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:32.137838    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.CSINode: failed to list *v1.CSINode: Get "https://localhost:6443/apis/storage.k8s.io/v1/csinodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:32.223412    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicationController: failed to list *v1.ReplicationController: Get "https://localhost:6443/api/v1/replicationcontrollers?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:32.353292    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicaSet: failed to list *v1.ReplicaSet: Get "https://localhost:6443/apis/apps/v1/replicasets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:33.751824    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Pod: failed to list *v1.Pod: Get "https://localhost:6443/api/v1/pods?fieldSelector=status.phase%21%3DSucceeded%2Cstatus.phase%21%3DFailed&limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:33.823744    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StorageClass: failed to list *v1.StorageClass: Get "https://localhost:6443/apis/storage.k8s.io/v1/storageclasses?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:33.840737    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Service: failed to list *v1.Service: Get "https://localhost:6443/api/v1/services?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:34.468467    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StatefulSet: failed to list *v1.StatefulSet: Get "https://localhost:6443/apis/apps/v1/statefulsets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:34.740967    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolume: failed to list *v1.PersistentVolume: Get "https://localhost:6443/api/v1/persistentvolumes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:34.742091    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolumeClaim: failed to list *v1.PersistentVolumeClaim: Get "https://localhost:6443/api/v1/persistentvolumeclaims?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:35.057780    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Node: failed to list *v1.Node: Get "https://localhost:6443/api/v1/nodes?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+E1230 08:37:35.124524    1077 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1beta1.PodDisruptionBudget: failed to list *v1beta1.PodDisruptionBudget: Get "https://localhost:6443/apis/policy/v1beta1/poddisruptionbudgets?limit=500&resourceVersion=0": x509: certificate is valid for kubernetes, kubernetes.default, kubernetes.default.svc, kubernetes.default.svc.cluster, kubernetes.svc.cluster.local, not localhost
+```
+
+So, the certificate is not valid for `localhost` hostname / domain name. So, I
+gotta use the IP address maybe, I guess. 😅
+
+```bash
+$ kube-scheduler --master https://192.168.64.39:6443
+I1230 08:40:08.040772    1094 serving.go:331] Generated self-signed cert in-memory
+W1230 08:40:08.872340    1094 authentication.go:303] No authentication-kubeconfig provided in order to lookup client-ca-file in configmap/extension-apiserver-authentication in kube-system, so client certificate authentication won't work.
+W1230 08:40:08.872536    1094 authentication.go:327] No authentication-kubeconfig provided in order to lookup requestheader-client-ca-file in configmap/extension-apiserver-authentication in kube-system, so request-header client certificate authentication won't work.
+W1230 08:40:08.872903    1094 authorization.go:173] No authorization-kubeconfig provided, so SubjectAccessReview of authorization tokens won't work.
+W1230 08:40:08.919123    1094 authorization.go:47] Authorization is disabled
+W1230 08:40:08.919628    1094 authentication.go:40] Authentication is disabled
+I1230 08:40:08.919971    1094 deprecated_insecure_serving.go:51] Serving healthz insecurely on [::]:10251
+I1230 08:40:08.922119    1094 secure_serving.go:197] Serving securely on [::]:10259
+I1230 08:40:08.922641    1094 tlsconfig.go:240] Starting DynamicServingCertificateController
+E1230 08:40:08.929468    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StatefulSet: failed to list *v1.StatefulSet: Get "https://192.168.64.39:6443/apis/apps/v1/statefulsets?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.935335    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicaSet: failed to list *v1.ReplicaSet: Get "https://192.168.64.39:6443/apis/apps/v1/replicasets?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.939144    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Pod: failed to list *v1.Pod: Get "https://192.168.64.39:6443/api/v1/pods?fieldSelector=status.phase%21%3DSucceeded%2Cstatus.phase%21%3DFailed&limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.942787    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.StorageClass: failed to list *v1.StorageClass: Get "https://192.168.64.39:6443/apis/storage.k8s.io/v1/storageclasses?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.946002    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.CSINode: failed to list *v1.CSINode: Get "https://192.168.64.39:6443/apis/storage.k8s.io/v1/csinodes?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.950535    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1beta1.PodDisruptionBudget: failed to list *v1beta1.PodDisruptionBudget: Get "https://192.168.64.39:6443/apis/policy/v1beta1/poddisruptionbudgets?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.954393    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Node: failed to list *v1.Node: Get "https://192.168.64.39:6443/api/v1/nodes?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.958179    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.Service: failed to list *v1.Service: Get "https://192.168.64.39:6443/api/v1/services?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.961257    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolume: failed to list *v1.PersistentVolume: Get "https://192.168.64.39:6443/api/v1/persistentvolumes?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.965322    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.PersistentVolumeClaim: failed to list *v1.PersistentVolumeClaim: Get "https://192.168.64.39:6443/api/v1/persistentvolumeclaims?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+E1230 08:40:08.969225    1094 reflector.go:138] k8s.io/client-go/informers/factory.go:134: Failed to watch *v1.ReplicationController: failed to list *v1.ReplicationController: Get "https://192.168.64.39:6443/api/v1/replicationcontrollers?limit=500&resourceVersion=0": x509: certificate signed by unknown authority
+```
+
+Of course it's an unknown Certificate Authority. Let's try to fix that first. :)
+
+---
+
+I'm going to check how kubernetes-the-hard-way does it. Btw, I also noticed that
+it currently uses 1.18.6 actually
+
+https://github.com/kelseyhightower/kubernetes-the-hard-way/commit/ca96371e4d2d2176e8b2c3f5b656b5d92973479e
+
+Good thing :) ;) :D
+
+Okay, so, kube-config is deprecated. So, what I'm going to use is Authentication
+Kube Config and see if it works out :)
+
+Kubernetes The Hard Way uses kubernetes config yaml files for configuration.
+That's okay, I'm just going to use flags and also, it uses the deprecated
+kube config I think. At least that's how it looks like to me. Not sure.
+
+Now, I need to create some certificates. I was wondering if I should really
+put the `system:kube-scheduler` in the username or in the group as part of
+organization. Hmm.
+
+According to the latest docs
+
+https://kubernetes.io/docs/setup/best-practices/certificates/#configure-certificates-for-user-accounts
+
+Nothing much really. Hmm. Anyways, now, let's get to work and create two
+certificates. One with the group, and another without :)
+
+```bash
+$ cat > normal-kube-scheduler-csr.json <<EOF
+{
+    "CN": "system:kube-scheduler",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Francisco",
+            "O": "Kubernetes",
+            "OU": "Kubernetes Scheduler",
+            "ST": "California"
+        }
+    ]
+}
+EOF
+
+$ cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  normal-kube-scheduler-csr.json | cfssljson -bare normal-kube-scheduler
+```
+
+```bash
+$ cat > kube-scheduler-csr.json <<EOF
+{
+    "CN": "system:kube-scheduler",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Francisco",
+            "O": "system:kube-scheduler",
+            "OU": "Kubernetes Scheduler",
+            "ST": "California"
+        }
+    ]
+}
+EOF
+
+$ cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  kube-scheduler-csr.json | cfssljson -bare kube-scheduler
+```
+
+```bash
+$ export API_SERVER_NODE_IP=192.168.64.39
+
+$ kubectl config set-cluster my-own-k8s-cluster \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://${API_SERVER_NODE_IP}:6443 \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+$ kubectl config set-credentials normal-kube-scheduler \
+    --client-certificate=normal-kube-scheduler.pem \
+    --client-key=normal-kube-scheduler-key.pem \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+$ kubectl config set-context normal-kube-scheduler \
+    --cluster=my-own-k8s-cluster \
+    --user=normal-kube-scheduler \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+$ kubectl config set-credentials kube-scheduler \
+    --client-certificate=kube-scheduler.pem \
+    --client-key=kube-scheduler-key.pem \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+$ kubectl config set-context kube-scheduler \
+    --cluster=my-own-k8s-cluster \
+    --user=kube-scheduler \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+$ kubectl config use-context normal-kube-scheduler \
+    --kubeconfig=kube-scheduler.kubeconfig
+```
