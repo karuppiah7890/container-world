@@ -1151,6 +1151,7 @@ Oops. I created a file for `--config`. Not for `--kubeconfig`. Hmm
 
 For kube config, I need client certificates. So
 
+Steps:
 - create cfssl json config for creating client ssl certificates
   https://kubernetes.io/docs/concepts/cluster-administration/certificates/
   https://kubernetes.io/docs/concepts/cluster-administration/certificates/#cfssl
@@ -1164,7 +1165,27 @@ For kube config, I need client certificates. So
         value of the node name provided by the kubelet as it registers with the
         apiserver. For further details, read the Node Authorization. -
         https://kubernetes.io/docs/reference/access-authn-authz/node/
+        https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-tls-bootstrapping/
 
 - run cfssl and create the client ssl certificates
 - use kubectl config command to create kube config `kubelete.kubeconfig` and
   rename kubelet config file to `kubelet.config` as that's more appropriate.
+
+https://kubernetes.io/docs/reference/access-authn-authz/node/
+
+```
+In order to be authorized by the Node authorizer, kubelets must use a credential
+that identifies them as being in the system:nodes group, with a username of
+system:node:<nodeName>. This group and user name format match the identity
+created for each kubelet as part of kubelet TLS bootstrapping.
+
+The value of <nodeName> must match precisely the name of the node as registered
+by the kubelet. By default, this is the host name as provided by hostname, or
+overridden via the kubelet option --hostname-override. However, when using the
+--cloud-provider kubelet option, the specific hostname may be determined by the
+cloud provider, ignoring the local hostname and the --hostname-override option.
+For specifics about how the kubelet determines the hostname, see the kubelet
+options reference.
+````
+
+I'll use "worker-1" as the node name :)
