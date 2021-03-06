@@ -1152,6 +1152,7 @@ Oops. I created a file for `--config`. Not for `--kubeconfig`. Hmm
 For kube config, I need client certificates. So
 
 Steps:
+
 - create cfssl json config for creating client ssl certificates
   https://kubernetes.io/docs/concepts/cluster-administration/certificates/
   https://kubernetes.io/docs/concepts/cluster-administration/certificates/#cfssl
@@ -1186,6 +1187,929 @@ overridden via the kubelet option --hostname-override. However, when using the
 cloud provider, ignoring the local hostname and the --hostname-override option.
 For specifics about how the kubelet determines the hostname, see the kubelet
 options reference.
-````
+```
 
 I'll use "worker-1" as the node name :)
+
+```
+$ cat kubelet.kubeconfig
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+evictionHard:
+    memory.available:  "200Mi"
+tlsCertFile: "kubelet-server.pem"
+tlsPrivateKeyFile: "kubelet-server-key.pem"
+
+$ mv kubelet.kubeconfig kubelet.config
+```
+
+```bash
+$ cat > kubelet-csr.json <<EOF
+{
+    "CN": "system:node:worker-1",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Francisco",
+            "O": "system:nodes",
+            "OU": "Kubelet",
+            "ST": "California"
+        }
+    ]
+}
+EOF
+
+$ cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  kubelet-csr.json | cfssljson -bare kubelet
+```
+
+```bash
+$ export API_SERVER_NODE_IP=192.168.64.39
+
+$ kubectl config set-cluster my-own-k8s-cluster \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://${API_SERVER_NODE_IP}:6443 \
+    --kubeconfig=kubelet.kubeconfig
+
+$ kubectl config set-credentials kubelet \
+    --client-certificate=kubelet.pem \
+    --client-key=kubelet-key.pem \
+    --kubeconfig=kubelet.kubeconfig
+
+$ kubectl config set-context kubelet \
+    --cluster=my-own-k8s-cluster \
+    --user=kubelet \
+    --kubeconfig=kubelet.kubeconfig
+
+$ kubectl config use-context kubelet \
+    --kubeconfig=kubelet.kubeconfig
+```
+
+```bash
+$ sudo kubelet --root-dir /opt/kubelet/ --config kubelet.config --kubeconfig kubelet.kubeconfig
+I0207 12:23:41.893288    1738 server.go:416] Version: v1.20.1
+W0207 12:23:41.953004    1738 server.go:614] failed to get the kubelet's cgroup: cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /user.slice/user-1000.slice/session-5.scope.  Kubelet system container metrics may be missing.
+W0207 12:23:41.955876    1738 server.go:621] failed to get the container runtime's cgroup: failed to get container name for docker process: cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /system.slice/snap.docker.dockerd.service. Runtime system container metrics may be missing.
+I0207 12:23:42.370715    1738 server.go:645] --cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /
+I0207 12:23:42.372121    1738 container_manager_linux.go:274] container manager verified user specified cgroup-root exists: []
+I0207 12:23:42.372514    1738 container_manager_linux.go:279] Creating Container Manager object based on Node Config: {RuntimeCgroupsName: SystemCgroupsName: KubeletCgroupsName: ContainerRuntime:docker CgroupsPerQOS:true CgroupRoot:/ CgroupDriver:cgroupfs KubeletRootDir:/opt/kubelet/ ProtectKernelDefaults:false NodeAllocatableConfig:{KubeReservedCgroupName: SystemReservedCgroupName: ReservedSystemCPUs: EnforceNodeAllocatable:map[pods:{}] KubeReserved:map[] SystemReserved:map[] HardEvictionThresholds:[{Signal:memory.available Operator:LessThan Value:{Quantity:200Mi Percentage:0} GracePeriod:0s MinReclaim:<nil>}]} QOSReserved:map[] ExperimentalCPUManagerPolicy:none ExperimentalTopologyManagerScope:container ExperimentalCPUManagerReconcilePeriod:10s ExperimentalPodPidsLimit:-1 EnforceCPULimits:true CPUCFSQuotaPeriod:100ms ExperimentalTopologyManagerPolicy:none}
+I0207 12:23:42.373662    1738 topology_manager.go:120] [topologymanager] Creating topology manager with none policy per container scope
+I0207 12:23:42.374056    1738 container_manager_linux.go:310] [topologymanager] Initializing Topology Manager with none policy and container-level scope
+I0207 12:23:42.374547    1738 container_manager_linux.go:315] Creating device plugin manager: true
+W0207 12:23:42.376713    1738 kubelet.go:297] Using dockershim is deprecated, please consider using a full-fledged CRI implementation
+I0207 12:23:42.378309    1738 client.go:77] Connecting to docker on unix:///var/run/docker.sock
+I0207 12:23:42.378744    1738 client.go:94] Start docker client with request timeout=2m0s
+W0207 12:23:42.387645    1738 docker_service.go:559] Hairpin mode set to "promiscuous-bridge" but kubenet is not enabled, falling back to "hairpin-veth"
+I0207 12:23:42.387722    1738 docker_service.go:240] Hairpin mode set to "hairpin-veth"
+W0207 12:23:42.388771    1738 cni.go:239] Unable to update cni config: no networks found in /etc/cni/net.d
+W0207 12:23:42.394747    1738 hostport_manager.go:71] The binary conntrack is not installed, this can cause failures in network connection cleanup.
+W0207 12:23:42.395131    1738 hostport_manager.go:71] The binary conntrack is not installed, this can cause failures in network connection cleanup.
+I0207 12:23:42.401696    1738 docker_service.go:255] Docker cri networking managed by kubernetes.io/no-op
+I0207 12:23:42.410271    1738 docker_service.go:260] Docker Info: &{ID:OUWO:QIKR:KLYA:YHJZ:5VDA:7NBA:RME2:MVHU:2QSS:2PBR:F2DA:T6BM Containers:0 ContainersRunning:0 ContainersPaused:0 ContainersStopped:0 Images:0 Driver:overlay2 DriverStatus:[[Backing Filesystem extfs] [Supports d_type true] [Native Overlay Diff true]] SystemStatus:[] Plugins:{Volume:[local] Network:[bridge host ipvlan macvlan null overlay] Authorization:[] Log:[awslogs fluentd gcplogs gelf journald json-file local logentries splunk syslog]} MemoryLimit:true SwapLimit:false KernelMemory:true KernelMemoryTCP:true CPUCfsPeriod:true CPUCfsQuota:true CPUShares:true CPUSet:true PidsLimit:true IPv4Forwarding:true BridgeNfIptables:true BridgeNfIP6tables:true Debug:false NFd:23 OomKillDisable:true NGoroutines:41 SystemTime:2021-02-07T12:23:42.402910194+05:30 LoggingDriver:json-file CgroupDriver:cgroupfs NEventsListener:0 KernelVersion:5.4.0-54-generic OperatingSystem:Ubuntu Core 16 OSType:linux Architecture:x86_64 IndexServerAddress:https://index.docker.io/v1/ RegistryConfig:0xc0004877a0 NCPU:1 MemTotal:1029029888 GenericResources:[] DockerRootDir:/var/snap/docker/common/var-lib-docker HTTPProxy: HTTPSProxy: NoProxy: Name:my-own-k8s-cluster Labels:[] ExperimentalBuild:false ServerVersion:19.03.11 ClusterStore: ClusterAdvertise: Runtimes:map[runc:{Path:runc Args:[]}] DefaultRuntime:runc Swarm:{NodeID: NodeAddr: LocalNodeState:inactive ControlAvailable:false Error: RemoteManagers:[] Nodes:0 Managers:0 Cluster:<nil> Warnings:[]} LiveRestoreEnabled:false Isolation: InitBinary:docker-init ContainerdCommit:{ID:7ad184331fa3e55e52b890ea95e65ba581ae3429 Expected:7ad184331fa3e55e52b890ea95e65ba581ae3429} RuncCommit:{ID: Expected:} InitCommit:{ID:fec3683 Expected:fec3683} SecurityOptions:[name=apparmor name=seccomp,profile=default] ProductLicense: Warnings:[WARNING: No swap limit support]}
+I0207 12:23:42.410342    1738 docker_service.go:273] Setting cgroupDriver to cgroupfs
+I0207 12:23:42.428526    1738 remote_runtime.go:62] parsed scheme: ""
+I0207 12:23:42.428545    1738 remote_runtime.go:62] scheme "" not registered, fallback to default scheme
+I0207 12:23:42.429733    1738 passthrough.go:48] ccResolverWrapper: sending update to cc: {[{/var/run/dockershim.sock  <nil> 0 <nil>}] <nil> <nil>}
+I0207 12:23:42.429757    1738 clientconn.go:948] ClientConn switching balancer to "pick_first"
+I0207 12:23:42.429814    1738 remote_image.go:50] parsed scheme: ""
+I0207 12:23:42.429829    1738 remote_image.go:50] scheme "" not registered, fallback to default scheme
+I0207 12:23:42.429843    1738 passthrough.go:48] ccResolverWrapper: sending update to cc: {[{/var/run/dockershim.sock  <nil> 0 <nil>}] <nil> <nil>}
+I0207 12:23:42.429848    1738 clientconn.go:948] ClientConn switching balancer to "pick_first"
+I0207 12:23:42.429880    1738 kubelet.go:273] Watching apiserver
+I0207 12:23:42.433055    1738 clientconn.go:897] blockingPicker: the picked transport is not ready, loop back to repick
+I0207 12:23:42.517502    1738 kuberuntime_manager.go:216] Container runtime docker initialized, version: 19.03.11, apiVersion: 1.40.0
+E0207 12:23:47.965866    1738 aws_credentials.go:77] while getting AWS credentials NoCredentialProviders: no valid providers in chain. Deprecated.
+        For verbose messaging see aws.Config.CredentialsChainVerboseErrors
+I0207 12:23:47.976041    1738 server.go:1176] Started kubelet
+E0207 12:23:47.980221    1738 kubelet.go:1271] Image garbage collection failed once. Stats initialization may not have completed yet: failed to get imageFs info: unable to find data in memory cache
+I0207 12:23:47.982746    1738 server.go:148] Starting to listen on 0.0.0.0:10250
+I0207 12:23:47.984453    1738 server.go:409] Adding debug handlers to kubelet server.
+I0207 12:23:47.996159    1738 fs_resource_analyzer.go:64] Starting FS ResourceAnalyzer
+I0207 12:23:48.000526    1738 volume_manager.go:271] Starting Kubelet Volume Manager
+I0207 12:23:48.005710    1738 desired_state_of_world_populator.go:142] Desired state populator starts to run
+E0207 12:23:48.115795    1738 kubelet.go:2240] node "my-own-k8s-cluster" not found
+E0207 12:23:48.116547    1738 nodelease.go:49] failed to get node "my-own-k8s-cluster" when trying to set owner ref to the node lease: nodes "my-own-k8s-cluster" not found
+I0207 12:23:48.193206    1738 kubelet_network_linux.go:56] Initialized IPv4 iptables rules.
+I0207 12:23:48.193602    1738 status_manager.go:158] Starting to sync pod status with apiserver
+I0207 12:23:48.193958    1738 kubelet.go:1799] Starting kubelet main sync loop.
+E0207 12:23:48.194385    1738 kubelet.go:1823] skipping pod synchronization - [container runtime status check may not have completed yet, PLEG is not healthy: pleg has yet to be successful]
+E0207 12:23:48.218770    1738 kubelet.go:2240] node "my-own-k8s-cluster" not found
+E0207 12:23:48.306346    1738 kubelet.go:1823] skipping pod synchronization - container runtime status check may not have completed yet
+I0207 12:23:48.306935    1738 kubelet_node_status.go:71] Attempting to register node my-own-k8s-cluster
+I0207 12:23:48.320344    1738 kubelet_node_status.go:74] Successfully registered node my-own-k8s-cluster
+E0207 12:23:48.320741    1738 kubelet.go:2240] node "my-own-k8s-cluster" not found
+I0207 12:23:48.414555    1738 cpu_manager.go:193] [cpumanager] starting with none policy
+I0207 12:23:48.414776    1738 cpu_manager.go:194] [cpumanager] reconciling every 10s
+I0207 12:23:48.415135    1738 state_mem.go:36] [cpumanager] initializing new in-memory state store
+I0207 12:23:48.416848    1738 state_mem.go:88] [cpumanager] updated default cpuset: ""
+I0207 12:23:48.417223    1738 state_mem.go:96] [cpumanager] updated cpuset assignments: "map[]"
+I0207 12:23:48.417792    1738 policy_none.go:43] [cpumanager] none policy: Start
+W0207 12:23:48.432482    1738 manager.go:594] Failed to retrieve checkpoint for "kubelet_internal_checkpoint": checkpoint is not found
+E0207 12:23:48.435191    1738 container_manager_linux.go:487] cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /system.slice/snap.docker.dockerd.service
+E0207 12:23:48.440955    1738 container_manager_linux.go:533] failed to find cgroups of kubelet - cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /user.slice/user-1000.slice/session-5.scope
+I0207 12:23:48.466143    1738 plugin_manager.go:114] Starting Kubelet Plugin Manager
+I0207 12:23:48.624370    1738 reconciler.go:157] Reconciler: start to sync state
+```
+
+Oops. I forgot to override the name of the node using the hostname override.
+I can see some node not found errors. Hmm
+
+```
+$ sudo kubelet --root-dir /opt/kubelet/ --config kubelet.config --kubeconfig kubelet.kubeconfig
+I0207 12:24:24.427225    2015 server.go:416] Version: v1.20.1
+W0207 12:24:24.490155    2015 server.go:614] failed to get the kubelet's cgroup: cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /user.slice/user-1000.slice/session-5.scope.  Kubelet system container metrics may be missing.
+W0207 12:24:24.493092    2015 server.go:621] failed to get the container runtime's cgroup: failed to get container name for docker process: cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /system.slice/snap.docker.dockerd.service. Runtime system container metrics may be missing.
+I0207 12:24:24.585406    2015 server.go:645] --cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /
+I0207 12:24:24.585784    2015 container_manager_linux.go:274] container manager verified user specified cgroup-root exists: []
+I0207 12:24:24.585807    2015 container_manager_linux.go:279] Creating Container Manager object based on Node Config: {RuntimeCgroupsName: SystemCgroupsName: KubeletCgroupsName: ContainerRuntime:docker CgroupsPerQOS:true CgroupRoot:/ CgroupDriver:cgroupfs KubeletRootDir:/opt/kubelet/ ProtectKernelDefaults:false NodeAllocatableConfig:{KubeReservedCgroupName: SystemReservedCgroupName: ReservedSystemCPUs: EnforceNodeAllocatable:map[pods:{}] KubeReserved:map[] SystemReserved:map[] HardEvictionThresholds:[{Signal:memory.available Operator:LessThan Value:{Quantity:200Mi Percentage:0} GracePeriod:0s MinReclaim:<nil>}]} QOSReserved:map[] ExperimentalCPUManagerPolicy:none ExperimentalTopologyManagerScope:container ExperimentalCPUManagerReconcilePeriod:10s ExperimentalPodPidsLimit:-1 EnforceCPULimits:true CPUCFSQuotaPeriod:100ms ExperimentalTopologyManagerPolicy:none}
+I0207 12:24:24.585873    2015 topology_manager.go:120] [topologymanager] Creating topology manager with none policy per container scope
+I0207 12:24:24.585881    2015 container_manager_linux.go:310] [topologymanager] Initializing Topology Manager with none policy and container-level scope
+I0207 12:24:24.585885    2015 container_manager_linux.go:315] Creating device plugin manager: true
+W0207 12:24:24.585952    2015 kubelet.go:297] Using dockershim is deprecated, please consider using a full-fledged CRI implementation
+I0207 12:24:24.585965    2015 client.go:77] Connecting to docker on unix:///var/run/docker.sock
+I0207 12:24:24.585974    2015 client.go:94] Start docker client with request timeout=2m0s
+W0207 12:24:24.603458    2015 docker_service.go:559] Hairpin mode set to "promiscuous-bridge" but kubenet is not enabled, falling back to "hairpin-veth"
+I0207 12:24:24.603492    2015 docker_service.go:240] Hairpin mode set to "hairpin-veth"
+W0207 12:24:24.603582    2015 cni.go:239] Unable to update cni config: no networks found in /etc/cni/net.d
+W0207 12:24:24.605961    2015 hostport_manager.go:71] The binary conntrack is not installed, this can cause failures in network connection cleanup.
+W0207 12:24:24.606324    2015 hostport_manager.go:71] The binary conntrack is not installed, this can cause failures in network connection cleanup.
+I0207 12:24:24.609046    2015 docker_service.go:255] Docker cri networking managed by kubernetes.io/no-op
+I0207 12:24:24.622331    2015 docker_service.go:260] Docker Info: &{ID:OUWO:QIKR:KLYA:YHJZ:5VDA:7NBA:RME2:MVHU:2QSS:2PBR:F2DA:T6BM Containers:0 ContainersRunning:0 ContainersPaused:0 ContainersStopped:0 Images:0 Driver:overlay2 DriverStatus:[[Backing Filesystem extfs] [Supports d_type true] [Native Overlay Diff true]] SystemStatus:[] Plugins:{Volume:[local] Network:[bridge host ipvlan macvlan null overlay] Authorization:[] Log:[awslogs fluentd gcplogs gelf journald json-file local logentries splunk syslog]} MemoryLimit:true SwapLimit:false KernelMemory:true KernelMemoryTCP:true CPUCfsPeriod:true CPUCfsQuota:true CPUShares:true CPUSet:true PidsLimit:true IPv4Forwarding:true BridgeNfIptables:true BridgeNfIP6tables:true Debug:false NFd:23 OomKillDisable:true NGoroutines:41 SystemTime:2021-02-07T12:24:24.611721334+05:30 LoggingDriver:json-file CgroupDriver:cgroupfs NEventsListener:0 KernelVersion:5.4.0-54-generic OperatingSystem:Ubuntu Core 16 OSType:linux Architecture:x86_64 IndexServerAddress:https://index.docker.io/v1/ RegistryConfig:0xc00079c690 NCPU:1 MemTotal:1029029888 GenericResources:[] DockerRootDir:/var/snap/docker/common/var-lib-docker HTTPProxy: HTTPSProxy: NoProxy: Name:my-own-k8s-cluster Labels:[] ExperimentalBuild:false ServerVersion:19.03.11 ClusterStore: ClusterAdvertise: Runtimes:map[runc:{Path:runc Args:[]}] DefaultRuntime:runc Swarm:{NodeID: NodeAddr: LocalNodeState:inactive ControlAvailable:false Error: RemoteManagers:[] Nodes:0 Managers:0 Cluster:<nil> Warnings:[]} LiveRestoreEnabled:false Isolation: InitBinary:docker-init ContainerdCommit:{ID:7ad184331fa3e55e52b890ea95e65ba581ae3429 Expected:7ad184331fa3e55e52b890ea95e65ba581ae3429} RuncCommit:{ID: Expected:} InitCommit:{ID:fec3683 Expected:fec3683} SecurityOptions:[name=apparmor name=seccomp,profile=default] ProductLicense: Warnings:[WARNING: No swap limit support]}
+I0207 12:24:24.622432    2015 docker_service.go:273] Setting cgroupDriver to cgroupfs
+I0207 12:24:24.656087    2015 remote_runtime.go:62] parsed scheme: ""
+I0207 12:24:24.656106    2015 remote_runtime.go:62] scheme "" not registered, fallback to default scheme
+I0207 12:24:24.656137    2015 passthrough.go:48] ccResolverWrapper: sending update to cc: {[{/var/run/dockershim.sock  <nil> 0 <nil>}] <nil> <nil>}
+I0207 12:24:24.656145    2015 clientconn.go:948] ClientConn switching balancer to "pick_first"
+I0207 12:24:24.656179    2015 remote_image.go:50] parsed scheme: ""
+I0207 12:24:24.656184    2015 remote_image.go:50] scheme "" not registered, fallback to default scheme
+I0207 12:24:24.656193    2015 passthrough.go:48] ccResolverWrapper: sending update to cc: {[{/var/run/dockershim.sock  <nil> 0 <nil>}] <nil> <nil>}
+I0207 12:24:24.656198    2015 clientconn.go:948] ClientConn switching balancer to "pick_first"
+I0207 12:24:24.656229    2015 kubelet.go:273] Watching apiserver
+I0207 12:24:24.656513    2015 clientconn.go:897] blockingPicker: the picked transport is not ready, loop back to repick
+I0207 12:24:24.709051    2015 kuberuntime_manager.go:216] Container runtime docker initialized, version: 19.03.11, apiVersion: 1.40.0
+E0207 12:24:31.085193    2015 aws_credentials.go:77] while getting AWS credentials NoCredentialProviders: no valid providers in chain. Deprecated.
+        For verbose messaging see aws.Config.CredentialsChainVerboseErrors
+I0207 12:24:31.086136    2015 server.go:1176] Started kubelet
+E0207 12:24:31.087525    2015 kubelet.go:1271] Image garbage collection failed once. Stats initialization may not have completed yet: failed to get imageFs info: unable to find data in memory cache
+I0207 12:24:31.089086    2015 fs_resource_analyzer.go:64] Starting FS ResourceAnalyzer
+I0207 12:24:31.091157    2015 server.go:148] Starting to listen on 0.0.0.0:10250
+I0207 12:24:31.092801    2015 server.go:409] Adding debug handlers to kubelet server.
+I0207 12:24:31.096182    2015 volume_manager.go:271] Starting Kubelet Volume Manager
+I0207 12:24:31.097277    2015 desired_state_of_world_populator.go:142] Desired state populator starts to run
+I0207 12:24:31.231235    2015 kubelet_network_linux.go:56] Initialized IPv4 iptables rules.
+I0207 12:24:31.231638    2015 status_manager.go:158] Starting to sync pod status with apiserver
+I0207 12:24:31.232509    2015 kubelet.go:1799] Starting kubelet main sync loop.
+E0207 12:24:31.232966    2015 kubelet.go:1823] skipping pod synchronization - [container runtime status check may not have completed yet, PLEG is not healthy: pleg has yet to be successful]
+E0207 12:24:31.339952    2015 kubelet.go:1823] skipping pod synchronization - container runtime status check may not have completed yet
+I0207 12:24:31.342364    2015 kubelet_node_status.go:71] Attempting to register node my-own-k8s-cluster
+I0207 12:24:31.347911    2015 cpu_manager.go:193] [cpumanager] starting with none policy
+I0207 12:24:31.351003    2015 cpu_manager.go:194] [cpumanager] reconciling every 10s
+I0207 12:24:31.351248    2015 state_mem.go:36] [cpumanager] initializing new in-memory state store
+I0207 12:24:31.351699    2015 state_mem.go:88] [cpumanager] updated default cpuset: ""
+I0207 12:24:31.351926    2015 state_mem.go:96] [cpumanager] updated cpuset assignments: "map[]"
+I0207 12:24:31.352059    2015 policy_none.go:43] [cpumanager] none policy: Start
+W0207 12:24:31.353087    2015 manager.go:594] Failed to retrieve checkpoint for "kubelet_internal_checkpoint": checkpoint is not found
+I0207 12:24:31.354999    2015 plugin_manager.go:114] Starting Kubelet Plugin Manager
+E0207 12:24:31.358190    2015 container_manager_linux.go:487] cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /system.slice/snap.docker.dockerd.service
+E0207 12:24:31.359350    2015 container_manager_linux.go:533] failed to find cgroups of kubelet - cpu and memory cgroup hierarchy not unified.  cpu: /, memory: /user.slice/user-1000.slice/session-5.scope
+I0207 12:24:31.410233    2015 kubelet_node_status.go:109] Node my-own-k8s-cluster was previously registered
+I0207 12:24:31.410626    2015 kubelet_node_status.go:74] Successfully registered node my-own-k8s-cluster
+I0207 12:24:31.618546    2015 reconciler.go:157] Reconciler: start to sync state
+```
+
+But I can also see successfully registered. Let me check with kubectl ! :)
+
+```bash
+$ kubectl get nodes
+NAME                 STATUS   ROLES    AGE    VERSION
+my-own-k8s-cluster   Ready    <none>   2m4s   v1.20.1
+```
+
+Wow! :D :D
+
+```bash
+$ kubectl get pods
+NAME          READY   STATUS    RESTARTS   AGE
+simple-task   0/1     Pending   0          39d
+```
+
+But my pod is still not running :/
+
+```bash
+$ kubectl describe pods
+Name:         simple-task
+Namespace:    default
+Priority:     0
+Node:         <none>
+Labels:       app=simple-task
+Annotations:  <none>
+Status:       Pending
+IP:
+IPs:          <none>
+Containers:
+  echo-task:
+    Image:      busybox
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      echo
+    Args:
+      network-job
+    Environment:  <none>
+    Mounts:       <none>
+Conditions:
+  Type           Status
+  PodScheduled   False
+Volumes:         <none>
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason            Age    From               Message
+  ----     ------            ----   ----               -------
+  Warning  FailedScheduling  17h    default-scheduler  no nodes available to schedule pods
+  Warning  FailedScheduling  14m    default-scheduler  no nodes available to schedule pods
+  Warning  FailedScheduling  2m36s  default-scheduler  0/1 nodes are available: 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate.
+```
+
+oh. some taint it seems. Hmm. But I can see that the node is ready.
+
+```bash
+$ kubectl get nodes
+NAME                 STATUS   ROLES    AGE     VERSION
+my-own-k8s-cluster   Ready    <none>   3m10s   v1.20.1
+```
+
+`node.kubernetes.io/not-ready` hmm.
+
+```bash
+$ kubectl get nodes -o yaml
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Node
+  metadata:
+    annotations:
+      volumes.kubernetes.io/controller-managed-attach-detach: "true"
+    creationTimestamp: "2021-02-07T06:53:48Z"
+    labels:
+      beta.kubernetes.io/arch: amd64
+      beta.kubernetes.io/os: linux
+      kubernetes.io/arch: amd64
+      kubernetes.io/hostname: my-own-k8s-cluster
+      kubernetes.io/os: linux
+    managedFields:
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:volumes.kubernetes.io/controller-managed-attach-detach: {}
+          f:labels:
+            .: {}
+            f:beta.kubernetes.io/arch: {}
+            f:beta.kubernetes.io/os: {}
+            f:kubernetes.io/arch: {}
+            f:kubernetes.io/hostname: {}
+            f:kubernetes.io/os: {}
+        f:status:
+          f:addresses:
+            .: {}
+            k:{"type":"Hostname"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalIP"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+          f:allocatable:
+            .: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:capacity:
+            .: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:conditions:
+            .: {}
+            k:{"type":"DiskPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"MemoryPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"PIDPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"Ready"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+          f:daemonEndpoints:
+            f:kubeletEndpoint:
+              f:Port: {}
+          f:nodeInfo:
+            f:architecture: {}
+            f:bootID: {}
+            f:containerRuntimeVersion: {}
+            f:kernelVersion: {}
+            f:kubeProxyVersion: {}
+            f:kubeletVersion: {}
+            f:machineID: {}
+            f:operatingSystem: {}
+            f:osImage: {}
+            f:systemUUID: {}
+      manager: kubelet
+      operation: Update
+      time: "2021-02-07T06:53:58Z"
+    name: my-own-k8s-cluster
+    resourceVersion: "23220"
+    uid: 8035681b-0e76-42e0-8ab3-44072fccd5d6
+  spec:
+    taints:
+    - effect: NoSchedule
+      key: node.kubernetes.io/not-ready
+  status:
+    addresses:
+    - address: 192.168.64.39
+      type: InternalIP
+    - address: my-own-k8s-cluster
+      type: Hostname
+    allocatable:
+      cpu: "1"
+      ephemeral-storage: 4901996Ki
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 800112Ki
+      pods: "110"
+    capacity:
+      cpu: "1"
+      ephemeral-storage: 4901996Ki
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 1004912Ki
+      pods: "110"
+    conditions:
+    - lastHeartbeatTime: "2021-02-07T06:54:31Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has sufficient memory available
+      reason: KubeletHasSufficientMemory
+      status: "False"
+      type: MemoryPressure
+    - lastHeartbeatTime: "2021-02-07T06:54:31Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has no disk pressure
+      reason: KubeletHasNoDiskPressure
+      status: "False"
+      type: DiskPressure
+    - lastHeartbeatTime: "2021-02-07T06:54:31Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has sufficient PID available
+      reason: KubeletHasSufficientPID
+      status: "False"
+      type: PIDPressure
+    - lastHeartbeatTime: "2021-02-07T06:54:31Z"
+      lastTransitionTime: "2021-02-07T06:53:58Z"
+      message: kubelet is posting ready status. AppArmor enabled
+      reason: KubeletReady
+      status: "True"
+      type: Ready
+    daemonEndpoints:
+      kubeletEndpoint:
+        Port: 10250
+    nodeInfo:
+      architecture: amd64
+      bootID: f8ed3b6f-ecc6-4dad-bc70-348a2639b828
+      containerRuntimeVersion: docker://19.3.11
+      kernelVersion: 5.4.0-54-generic
+      kubeProxyVersion: v1.20.1
+      kubeletVersion: v1.20.1
+      machineID: 5d04dafdc66946c183b8202591fb1d15
+      operatingSystem: linux
+      osImage: Ubuntu 20.04.1 LTS
+      systemUUID: a300393f-0000-0000-b489-82a16eac886a
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+```
+
+Looks like there's a taint on the node. Hmm
+
+https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+
+One can add taints like this it seems
+
+```bash
+$ kubectl taint nodes node1 key1=value1:NoSchedule
+```
+
+And remove like this
+
+```bash
+$ kubectl taint nodes node1 key1=value1:NoSchedule-
+```
+
+It's weird that the only difference is a small `-` hyphen or a minus
+
+In our case, the key is `node.kubernetes.io/not-ready` and the value doesn't
+seem to exist and then the effect is `NoSchedule`
+
+I can either add tolerations in the pod like this
+
+```yaml
+tolerations:
+  - key: "key1"
+    operator: "Exists"
+    effect: "NoSchedule"
+```
+
+Or just remove the taint from the node I think
+
+Actually, it's an automatic taint. There's some reason to it I think. Looking
+at ready in the `kubectl get nodes` is not enough. Looking at the whole yaml,
+it is evident that there are some statuses that are not exactly clear.
+
+```yaml
+status:
+  addresses:
+    - address: 192.168.64.39
+      type: InternalIP
+    - address: my-own-k8s-cluster
+      type: Hostname
+  allocatable:
+    cpu: "1"
+    ephemeral-storage: 4901996Ki
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 800112Ki
+    pods: "110"
+  capacity:
+    cpu: "1"
+    ephemeral-storage: 4901996Ki
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 1004912Ki
+    pods: "110"
+  conditions:
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has sufficient memory available
+      reason: KubeletHasSufficientMemory
+      status: "False"
+      type: MemoryPressure
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has no disk pressure
+      reason: KubeletHasNoDiskPressure
+      status: "False"
+      type: DiskPressure
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has sufficient PID available
+      reason: KubeletHasSufficientPID
+      status: "False"
+      type: PIDPressure
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:58Z"
+      message: kubelet is posting ready status. AppArmor enabled
+      reason: KubeletReady
+      status: "True"
+      type: Ready
+  daemonEndpoints:
+    kubeletEndpoint:
+      Port: 10250
+  nodeInfo:
+    architecture: amd64
+    bootID: f8ed3b6f-ecc6-4dad-bc70-348a2639b828
+    containerRuntimeVersion: docker://19.3.11
+    kernelVersion: 5.4.0-54-generic
+    kubeProxyVersion: v1.20.1
+    kubeletVersion: v1.20.1
+    machineID: 5d04dafdc66946c183b8202591fb1d15
+    operatingSystem: linux
+    osImage: Ubuntu 20.04.1 LTS
+    systemUUID: a300393f-0000-0000-b489-82a16eac886a
+```
+
+Notice the conditions part of it
+
+```bash
+conditions:
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has sufficient memory available
+      reason: KubeletHasSufficientMemory
+      status: "False"
+      type: MemoryPressure
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has no disk pressure
+      reason: KubeletHasNoDiskPressure
+      status: "False"
+      type: DiskPressure
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:48Z"
+      message: kubelet has sufficient PID available
+      reason: KubeletHasSufficientPID
+      status: "False"
+      type: PIDPressure
+    - lastHeartbeatTime: "2021-02-07T07:10:06Z"
+      lastTransitionTime: "2021-02-07T06:53:58Z"
+      message: kubelet is posting ready status. AppArmor enabled
+      reason: KubeletReady
+      status: "True"
+      type: Ready
+```
+
+Some status values are false. Not sure if I should worry about it. I have heard
+about this "pressure" thing. I need to read about it. But for now I'm going to
+try to remove the taint manually to see if it gets added back again :)
+
+And effect `NoExecute` seems cool. It can apparently evict pods if the pods are
+already running on the node. I guess it's pretty dynamic and not just during
+scheduling. So, something or some process must always be checking all this and
+then evicting it.
+
+The current taint is by the node controller it seems. It's weird though. I never
+ran the controller manager which has all the controllers. Hmm. Anyways.
+
+```bash
+$ kubectl taint node my-own-k8s-cluster node.kubernetes.io/not-ready=:NoSchedule-
+node/my-own-k8s-cluster untainted
+```
+
+```bash
+$ kubectl get pods
+NAME          READY   STATUS              RESTARTS   AGE
+simple-task   0/1     ContainerCreating   0          39d
+```
+
+Yay!!!!! :D
+
+Oops
+
+```bash
+$ kubectl get pods
+NAME          READY   STATUS               RESTARTS   AGE
+simple-task   0/1     ContainerCannotRun   0          39d
+```
+
+```bash
+$ kubectl describe pod simple-task
+Name:         simple-task
+Namespace:    default
+Priority:     0
+Node:         my-own-k8s-cluster/192.168.64.39
+Start Time:   Sun, 07 Feb 2021 12:48:24 +0530
+Labels:       app=simple-task
+Annotations:  <none>
+Status:       Failed
+IP:           172.17.0.2
+IPs:
+  IP:  172.17.0.2
+Containers:
+  echo-task:
+    Container ID:  docker://6451aa1d2794a1cd9be4c864bf9c18dd22de41c0ae1a2395c50494e278611f2e
+    Image:         busybox
+    Image ID:      docker-pullable://busybox@sha256:e1488cb900233d035575f0a7787448cb1fa93bed0ccc0d4efc1963d7d72a8f17
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      echo
+    Args:
+      network-job
+    State:          Terminated
+      Reason:       ContainerCannotRun
+      Message:      cannot join network of a non running container: 3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd
+      Exit Code:    128
+      Started:      Sun, 07 Feb 2021 12:48:44 +0530
+      Finished:     Sun, 07 Feb 2021 12:48:44 +0530
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:         <none>
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             False
+  ContainersReady   False
+  PodScheduled      True
+Volumes:            <none>
+QoS Class:          BestEffort
+Node-Selectors:     <none>
+Tolerations:        node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                    node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason             Age                From               Message
+  ----     ------             ----               ----               -------
+  Warning  FailedScheduling   17h                default-scheduler  no nodes available to schedule pods
+  Warning  FailedScheduling   37m                default-scheduler  no nodes available to schedule pods
+  Warning  FailedScheduling   25m                default-scheduler  0/1 nodes are available: 1 node(s) had taint {node.kubernetes.io/not-ready: }, that the pod didn't tolerate.
+  Normal   Scheduled          75s                default-scheduler  Successfully assigned default/simple-task to my-own-k8s-cluster
+  Warning  MissingClusterDNS  62s (x2 over 76s)  kubelet            pod: "simple-task_default(4d5dfa39-d6de-4c59-8769-1661346326b4)". kubelet does not have ClusterDNS IP configured and cannot create Pod using "ClusterFirst" policy. Falling back to "Default" policy.
+  Normal   Pulling            62s                kubelet            Pulling image "busybox"
+  Normal   Pulled             56s                kubelet            Successfully pulled image "busybox" in 5.978716914s
+  Normal   Created            56s                kubelet            Created container echo-task
+  Warning  Failed             56s                kubelet            Error: failed to start container "echo-task": Error response from daemon: cannot join network of a non running container: 3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd
+```
+
+```bash
+$ sudo docker ps -a
+CONTAINER ID        IMAGE                  COMMAND              CREATED             STATUS                     PORTS               NAMES
+6451aa1d2794        busybox                "echo network-job"   2 minutes ago       Created                                        k8s_echo-task_simple-task_default_4d5dfa39-d6de-4c59-8769-1661346326b4_0
+3abdcc559a32        k8s.gcr.io/pause:3.2   "/pause"             2 minutes ago       Exited (1) 2 minutes ago                       k8s_POD_simple-task_default_4d5dfa39-d6de-4c59-8769-1661346326b4_0
+```
+
+For some reason it is not able to run the container.
+
+```bash
+$ sudo docker inspect 6451aa1d2794
+{
+  "Id": "6451aa1d2794a1cd9be4c864bf9c18dd22de41c0ae1a2395c50494e278611f2e",
+  "Created": "2021-02-07T07:18:44.490768237Z",
+  "Path": "echo",
+  "Args": [
+      "network-job"
+  ],
+  "State": {
+      "Status": "created",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 128,
+      "Error": "cannot join network of a non running container: 3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd",
+      "StartedAt": "0001-01-01T00:00:00Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "Image": "sha256:22667f53682a2920948d19c7133ab1c9c3f745805c14125859d20cede07f11f9",
+  "ResolvConfPath": "",
+  "HostnamePath": "",
+  "HostsPath": "",
+  "LogPath": "",
+  "Name": "/k8s_echo-task_simple-task_default_4d5dfa39-d6de-4c59-8769-1661346326b4_0",
+  "RestartCount": 0,
+  "Driver": "overlay2",
+  "Platform": "linux",
+  "MountLabel": "",
+  "ProcessLabel": "",
+  "AppArmorProfile": "",
+  "ExecIDs": null,
+  "HostConfig": {
+      "Binds": [
+          "/opt/kubelet/pods/4d5dfa39-d6de-4c59-8769-1661346326b4/etc-hosts:/etc/hosts",
+          "/opt/kubelet/pods/4d5dfa39-d6de-4c59-8769-1661346326b4/containers/echo-task/b71d7db8:/dev/termination-log"
+      ],
+      "ContainerIDFile": "",
+      "LogConfig": {
+          "Type": "json-file",
+          "Config": {}
+      },
+      "NetworkMode": "container:3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd",
+      "PortBindings": null,
+      "RestartPolicy": {
+          "Name": "no",
+          "MaximumRetryCount": 0
+      },
+      "AutoRemove": false,
+      "VolumeDriver": "",
+      "VolumesFrom": null,
+      "CapAdd": null,
+      "CapDrop": null,
+      "Capabilities": null,
+      "Dns": null,
+      "DnsOptions": null,
+      "DnsSearch": null,
+      "ExtraHosts": null,
+      "GroupAdd": null,
+      "IpcMode": "container:3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd",
+      "Cgroup": "",
+      "Links": null,
+      "OomScoreAdj": 1000,
+      "PidMode": "",
+      "Privileged": false,
+      "PublishAllPorts": false,
+      "ReadonlyRootfs": false,
+      "SecurityOpt": [
+          "seccomp=unconfined"
+      ],
+      "UTSMode": "",
+      "UsernsMode": "",
+      "ShmSize": 67108864,
+      "Runtime": "runc",
+      "ConsoleSize": [
+          0,
+          0
+      ],
+      "Isolation": "",
+      "CpuShares": 2,
+      "Memory": 0,
+      "NanoCpus": 0,
+      "CgroupParent": "/kubepods/besteffort/pod4d5dfa39-d6de-4c59-8769-1661346326b4",
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": null,
+      "BlkioDeviceReadBps": null,
+      "BlkioDeviceWriteBps": null,
+      "BlkioDeviceReadIOps": null,
+      "BlkioDeviceWriteIOps": null,
+      "CpuPeriod": 100000,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "Devices": [],
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "KernelMemory": 0,
+      "KernelMemoryTCP": 0,
+      "MemoryReservation": 0,
+      "MemorySwap": 0,
+      "MemorySwappiness": null,
+      "OomKillDisable": false,
+      "PidsLimit": null,
+      "Ulimits": null,
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "IOMaximumIOps": 0,
+      "IOMaximumBandwidth": 0,
+      "MaskedPaths": [
+          "/proc/acpi",
+          "/proc/kcore",
+          "/proc/keys",
+          "/proc/latency_stats",
+          "/proc/timer_list",
+          "/proc/timer_stats",
+          "/proc/sched_debug",
+          "/proc/scsi",
+          "/sys/firmware"
+      ],
+      "ReadonlyPaths": [
+          "/proc/asound",
+          "/proc/bus",
+          "/proc/fs",
+          "/proc/irq",
+          "/proc/sys",
+          "/proc/sysrq-trigger"
+      ]
+  },
+  "GraphDriver": {
+      "Data": {
+          "LowerDir": "/var/snap/docker/common/var-lib-docker/overlay2/d4ae80aee349bcddcde07f9f0d018e7791e14408400465c2a3845cf8e27ed735-init/diff:/var/snap/docker/common/var-lib-docker/overlay2/067f02af5890e0d56f9d9f347bf462f51f97a18dfdf32b5cda49a97f508ac42b/diff",
+          "MergedDir": "/var/snap/docker/common/var-lib-docker/overlay2/d4ae80aee349bcddcde07f9f0d018e7791e14408400465c2a3845cf8e27ed735/merged",
+          "UpperDir": "/var/snap/docker/common/var-lib-docker/overlay2/d4ae80aee349bcddcde07f9f0d018e7791e14408400465c2a3845cf8e27ed735/diff",
+          "WorkDir": "/var/snap/docker/common/var-lib-docker/overlay2/d4ae80aee349bcddcde07f9f0d018e7791e14408400465c2a3845cf8e27ed735/work"
+      },
+      "Name": "overlay2"
+  },
+  "Mounts": [
+      {
+          "Type": "bind",
+          "Source": "/opt/kubelet/pods/4d5dfa39-d6de-4c59-8769-1661346326b4/etc-hosts",
+          "Destination": "/etc/hosts",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+      },
+      {
+          "Type": "bind",
+          "Source": "/opt/kubelet/pods/4d5dfa39-d6de-4c59-8769-1661346326b4/containers/echo-task/b71d7db8",
+          "Destination": "/dev/termination-log",
+          "Mode": "",
+          "RW": true,
+          "Propagation": "rprivate"
+      }
+  ],
+  "Config": {
+      "Hostname": "6451aa1d2794",
+      "Domainname": "",
+      "User": "0",
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "AttachStderr": false,
+      "Tty": false,
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Env": [
+          "KUBERNETES_PORT_443_TCP=tcp://10.0.0.1:443",
+          "KUBERNETES_PORT_443_TCP_PROTO=tcp",
+          "KUBERNETES_PORT_443_TCP_PORT=443",
+          "KUBERNETES_PORT_443_TCP_ADDR=10.0.0.1",
+          "KUBERNETES_SERVICE_HOST=10.0.0.1",
+          "KUBERNETES_SERVICE_PORT=443",
+          "KUBERNETES_SERVICE_PORT_HTTPS=443",
+          "KUBERNETES_PORT=tcp://10.0.0.1:443",
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      ],
+      "Cmd": [
+          "network-job"
+      ],
+      "Healthcheck": {
+          "Test": [
+              "NONE"
+          ]
+      },
+      "Image": "busybox@sha256:e1488cb900233d035575f0a7787448cb1fa93bed0ccc0d4efc1963d7d72a8f17",
+      "Volumes": null,
+      "WorkingDir": "",
+      "Entrypoint": [
+          "echo"
+      ],
+      "OnBuild": null,
+      "Labels": {
+          "annotation.io.kubernetes.container.hash": "9e3dee60",
+          "annotation.io.kubernetes.container.restartCount": "0",
+          "annotation.io.kubernetes.container.terminationMessagePath": "/dev/termination-log",
+          "annotation.io.kubernetes.container.terminationMessagePolicy": "File",
+          "annotation.io.kubernetes.pod.terminationGracePeriod": "30",
+          "io.kubernetes.container.logpath": "/var/log/pods/default_simple-task_4d5dfa39-d6de-4c59-8769-1661346326b4/echo-task/0.log",
+          "io.kubernetes.container.name": "echo-task",
+          "io.kubernetes.docker.type": "container",
+          "io.kubernetes.pod.name": "simple-task",
+          "io.kubernetes.pod.namespace": "default",
+          "io.kubernetes.pod.uid": "4d5dfa39-d6de-4c59-8769-1661346326b4",
+          "io.kubernetes.sandbox.id": "3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd"
+      }
+  },
+  "NetworkSettings": {
+      "Bridge": "",
+      "SandboxID": "",
+      "HairpinMode": false,
+      "LinkLocalIPv6Address": "",
+      "LinkLocalIPv6PrefixLen": 0,
+      "Ports": {},
+      "SandboxKey": "",
+      "SecondaryIPAddresses": null,
+      "SecondaryIPv6Addresses": null,
+      "EndpointID": "",
+      "Gateway": "",
+      "GlobalIPv6Address": "",
+      "GlobalIPv6PrefixLen": 0,
+      "IPAddress": "",
+      "IPPrefixLen": 0,
+      "IPv6Gateway": "",
+      "MacAddress": "",
+      "Networks": {}
+  }
+}
+]
+```
+
+We can notice the sanbox ID
+
+`"io.kubernetes.sandbox.id": "3abdcc559a322f20a5dbe6c19749c75109c4ff37b8935c5ee14055ac8e8c72bd"`
+
+```bash
+$ k get pods -o yaml | grep uid
+    uid: 4d5dfa39-d6de-4c59-8769-1661346326b4
+```
+
+Pod UID is also there in the docker details
+
+`"io.kubernetes.pod.uid": "4d5dfa39-d6de-4c59-8769-1661346326b4",`
+
+And a lot more. Pod name, namespace. All as docker labels. Nice! Hmm
+
+
