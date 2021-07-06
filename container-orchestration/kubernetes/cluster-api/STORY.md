@@ -345,7 +345,7 @@ capi-quickstart-md-0-7cc765486-qqk89                Pending   v1.18.16
 ```
 
 ```bash
- cluster-api  master ✘  $ kubectl api-resources
+$ kubectl api-resources
 NAME                              SHORTNAMES   APIVERSION                                     NAMESPACED   KIND
 bindings                                       v1                                             true         Binding
 componentstatuses                 cs           v1                                             false        ComponentStatus
@@ -425,7 +425,7 @@ csidrivers                                     storage.k8s.io/v1                
 csinodes                                       storage.k8s.io/v1                              false        CSINode
 storageclasses                    sc           storage.k8s.io/v1                              false        StorageClass
 volumeattachments                              storage.k8s.io/v1                              false        VolumeAttachment
- cluster-api  master ✘  $ 
+$ 
 ```
 
 
@@ -599,3 +599,196 @@ I have to try something differently I guess
 $ kind delete cluster
 Deleting cluster "kind" ...
 ```
+
+---
+
+I just noticed that there's an extra step that I missed to notice 🙈 I was so impatient that I missed it!
+
+One of the lines in the docs says
+
+```
+if you are planning to use the docker infrastructure provider, please follow the additional instructions in the dedicated tab:
+```
+
+And asks to do this
+
+```bash
+$ cat > kind-cluster-with-extramounts.yaml <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraMounts:
+    - hostPath: /var/run/docker.sock
+      containerPath: /var/run/docker.sock
+EOF
+
+$ kind create cluster --config kind-cluster-with-extramounts.yaml
+```
+
+```bash
+clusterctl init --infrastructure docker
+```
+
+```bash
+$ clusterctl init --infrastructure docker
+Fetching providers
+Installing cert-manager Version="v1.1.0"
+Waiting for cert-manager to be available...
+Installing Provider="cluster-api" Version="v0.4.0" TargetNamespace="capi-system"
+Installing Provider="bootstrap-kubeadm" Version="v0.4.0" TargetNamespace="capi-kubeadm-bootstrap-system"
+Installing Provider="control-plane-kubeadm" Version="v0.4.0" TargetNamespace="capi-kubeadm-control-plane-system"
+Installing Provider="infrastructure-docker" Version="v0.4.0" TargetNamespace="capd-system"
+
+Your management cluster has been initialized successfully!
+
+You can now create your first workload cluster by running the following:
+
+  clusterctl generate cluster [name] --kubernetes-version [version] | kubectl apply -f -
+
+Error: unable to verify clusterctl version: unable to semver parse clusterctl GitVersion: strconv.ParseUint: parsing "": invalid syntax
+
+$ clusterctl version
+clusterctl version: &version.Info{Major:"", Minor:"", GitVersion:"", GitCommit:"", GitTreeState:"", BuildDate:"", GoVersion:"go1.16.5", Compiler:"gc", Platform:"darwin/amd64"}
+Error: unable to verify clusterctl version: unable to semver parse clusterctl GitVersion: strconv.ParseUint: parsing "": invalid syntax
+
+$ brew info clusterctl
+clusterctl: stable 0.4.0 (bottled)
+Home for the Cluster Management API work, a subproject of sig-cluster-lifecycle
+https://cluster-api.sigs.k8s.io
+/usr/local/Cellar/clusterctl/0.4.0 (5 files, 50.6MB) *
+  Poured from bottle on 2021-07-06 at 21:22:30
+From: https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/clusterctl.rb
+License: Apache-2.0
+==> Dependencies
+Build: go ✔
+==> Analytics
+install: 105 (30 days), 247 (90 days), 292 (365 days)
+install-on-request: 105 (30 days), 247 (90 days), 292 (365 days)
+build-error: 0 (30 days)
+
+$ clusterctl version
+clusterctl version: &version.Info{Major:"", Minor:"", GitVersion:"", GitCommit:"", GitTreeState:"", BuildDate:"", GoVersion:"go1.16.5", Compiler:"gc", Platform:"darwin/amd64"}
+Error: unable to verify clusterctl version: unable to semver parse clusterctl GitVersion: strconv.ParseUint: parsing "": invalid syntax
+
+$ echo $?
+1
+
+$ clusterctl generate cluster capi-quickstart --flavor development \
+>   --kubernetes-version v1.19.7 \
+>   --control-plane-machine-count=3 \
+>   --worker-machine-count=3 \
+>   > capi-quickstart.yaml
+
+Error: unable to verify clusterctl version: unable to semver parse clusterctl GitVersion: strconv.ParseUint: parsing "": invalid syntax
+$ 
+$ 
+```
+
+Some weird error when doing `brew` installation of `clusterctl`. Hmm
+
+https://github.com/kubernetes-sigs/cluster-api/issues/4802
+
+Anyways, things work though! :)
+
+```bash
+$ less capi-quickstart.yaml
+
+$ kubectl apply -f capi-quickstart.yaml
+cluster.cluster.x-k8s.io/capi-quickstart created
+dockercluster.infrastructure.cluster.x-k8s.io/capi-quickstart created
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/capi-quickstart-control-plane created
+kubeadmcontrolplane.controlplane.cluster.x-k8s.io/capi-quickstart-control-plane created
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/capi-quickstart-md-0 created
+kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io/capi-quickstart-md-0 created
+machinedeployment.cluster.x-k8s.io/capi-quickstart-md-0 created
+```
+
+```bash
+$ clusterctl describe cluster capi-quickstart
+NAME                                                                READY  SEVERITY  REASON                           SINCE  MESSAGE                                                                              
+/capi-quickstart                                                    False  Warning   ScalingUp                        6s     Scaling up control plane to 3 replicas (actual 1)                                    
+├─ClusterInfrastructure - DockerCluster/capi-quickstart             True                                              17s                                                                                         
+├─ControlPlane - KubeadmControlPlane/capi-quickstart-control-plane  False  Warning   ScalingUp                        6s     Scaling up control plane to 3 replicas (actual 1)                                    
+│ └─Machine/capi-quickstart-control-plane-7tkxm                     False  Info      WaitingForBootstrapData          16s    1 of 2 completed                                                                     
+└─Workers                                                                                                                                                                                                         
+  └─MachineDeployment/capi-quickstart-md-0                                                                                                                                                                        
+    └─3 Machines...                                                 False  Info      WaitingForControlPlaneAvailable  17s    See capi-quickstart-md-0-665856b6bd-9kdnh, capi-quickstart-md-0-665856b6bd-9lshz, ...
+Error: unable to verify clusterctl version: unable to semver parse clusterctl GitVersion: strconv.ParseUint: parsing "": invalid syntax
+
+$ docker ps
+CONTAINER ID   IMAGE                          COMMAND                  CREATED          STATUS          PORTS                                NAMES
+b787ba4d8fcc   kindest/haproxy:2.1.1-alpine   "/docker-entrypoint.…"   34 seconds ago   Up 29 seconds   33083/tcp, 0.0.0.0:33083->6443/tcp   capi-quickstart-lb
+836eb30ce1b9   kindest/node:v1.20.2           "/usr/local/bin/entr…"   19 minutes ago   Up 19 minutes   127.0.0.1:54864->6443/tcp            kind-control-plane
+```
+
+```bash
+$ kubectl get kubeadmcontrolplane --all-namespaces
+NAMESPACE   NAME                            INITIALIZED   API SERVER AVAILABLE   VERSION   REPLICAS   READY   UPDATED   UNAVAILABLE
+default     capi-quickstart-control-plane
+```
+
+```bash
+$ clusterctl get kubeconfig capi-quickstart > capi-quickstart.kubeconfig
+
+$ less capi-quickstart.kubeconfig 
+```
+
+I noticed that there are three replicas. And I'm like - my machine is going to die, lol
+
+Next time I gotta try one replica, lolol
+
+```bash
+$ kubectl --kubeconfig=./capi-quickstart.kubeconfig \
+>   apply -f https://docs.projectcalico.org/v3.15/manifests/calico.yaml
+
+Unable to connect to the server: dial tcp 172.18.0.3:6443: i/o timeout
+```
+
+```bash
+$ k get nodes
+NAME                 STATUS   ROLES                  AGE   VERSION
+kind-control-plane   Ready    control-plane,master   25m   v1.20.2
+
+$ kubectl --kubeconfig=./capi-quickstart.kubeconfig   apply -f https://docs.projectcalico.org/v3.15/manifests/calico.yaml
+Unable to connect to the server: dial tcp 172.18.0.3:6443: i/o timeout
+```
+
+```bash
+$ docker ps -a -q | xargs docker rm -f
+18e58b3dd3e7
+303241a2f05c
+5bc8c1b8f8ab
+aa8504505c9f
+f7960108f931
+0282c27bd19e
+b787ba4d8fcc
+836eb30ce1b9
+```
+
+Time to start from scratch :P
+
+Finally after cleaning up lots of stuff, it finally worked
+
+```bash
+$ clusterctl describe cluster capi-quickstart
+NAME                                                                READY  SEVERITY  REASON         SINCE  MESSAGE         
+/capi-quickstart                                                    True                            22s                    
+├─ClusterInfrastructure - DockerCluster/capi-quickstart             True                            81s                    
+├─ControlPlane - KubeadmControlPlane/capi-quickstart-control-plane  True                            22s                    
+│ └─Machine/capi-quickstart-control-plane-ss65t                     True                            28s                    
+└─Workers                                                                                                                  
+  └─MachineDeployment/capi-quickstart-md-0                                                                                 
+    └─Machine/capi-quickstart-md-0-665856b6bd-cx6cp                 False  Info      Bootstrapping  13s    1 of 2 completed
+Error: unable to verify clusterctl version: unable to semver parse clusterctl GitVersion: strconv.ParseUint: parsing "": invalid syntax
+```
+
+The workload cluster is still not able to boot and run :O Wow
+
+I give up, lol
+
+My Mac with 8 CPUs and 16GB RAM, out of which I provided 4 CPUs and 6 GB RAM and 16 GB disk
+
+I'm not sure what resources wasn't enough. I think it was CPU. Not sure. But I give up, haha
+
+I think I'll try to run some light weight thing - try out other k8s clusers with Docker providers or just use my work laptop which has more power
